@@ -10,10 +10,11 @@ export interface RawVector2 {
   x: number;
   y: number;
 }
+// In robotics rpy equates to xyz, in three.js this will need to be remapped to zyx
 export interface RawEuler {
-  x: number;
+  r: number;
+  p: number;
   y: number;
-  z: number;
 }
 export interface RawRGB {
   r: number;
@@ -229,11 +230,11 @@ export function instanceOfRawVector3(object: any): object is RawVector3 {
 }
 
 export function instanceOfRawVector2(object: any): object is RawVector2 {
-  return object.x !== undefined && object.y !== undefined;
+  return object.x !== undefined && object.y !== undefined && object.z === undefined;
 }
 
 export function instanceOfRawEuler(object: any): object is RawEuler {
-  return object.x !== undefined && object.y !== undefined && object.z !== undefined;
+  return object.r !== undefined && object.p !== undefined && object.y !== undefined;
 }
 
 export function instanceOfRawColor(object: any): object is RawColor {
