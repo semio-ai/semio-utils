@@ -22,3 +22,4 @@ export * from "./progress";
 export * from "./result";
 export * from "./regex";
 export * from "./map-deep-equal";
+export * from "./migrate-euler";
