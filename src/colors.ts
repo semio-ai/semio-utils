@@ -183,3 +183,82 @@ export function randomHexString(
   const l = Math.floor(constrainLuminosity ? constrainLuminosity * 100 : Math.random() * 100);
   return Color({ h, s, l }).hex() as string;
 }
+
+/**
+ * Compute normalized chroma (0..1) from an RGB tuple.
+ *  - 0 means perfectly gray
+ *  - 1 means maximum colorfulness
+ */
+export function rgbChroma([r, g, b]: [number, number, number]): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return (max - min) / 255;
+}
+
+/**
+ * Compute lightness (0..1) from an RGB tuple using (max+min)/2.
+ *  - 0 is black
+ *  - 1 is white
+ */
+export function rgbLightness([r, g, b]: [number, number, number]): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return (max + min) / (2 * 255);
+}
+
+/**
+ * Compute chroma from any CSS color string.
+ */
+export function colorChroma(color: string): number {
+  return rgbChroma(hexToRgbArray(color));
+}
+
+/**
+ * Compute lightness from any CSS color string.
+ */
+export function colorLightness(color: string): number {
+  return rgbLightness(hexToRgbArray(color));
+}
+
+export interface BlendHeuristicOptions {
+  chromaCutoff?: number; // default 0.08
+  minLightness?: number; // default 0.28
+  maxLightness?: number; // default 0.75
+}
+
+/**
+ * Decide whether mix-blend-difference is likely to improve contrast for a given color.
+ * Disables blending for near-neutral, mid-lightness colors (e.g., #737373),
+ * where difference blending tends to reduce contrast.
+ *
+ * Returns false for undefined/unparseable colors as a safe default.
+ */
+export function shouldUseBlendForLabelColor(
+  color?: string | null,
+  opts?: BlendHeuristicOptions,
+): boolean {
+  if (!color) return false;
+  let rgb: [number, number, number];
+  try {
+    rgb = hexToRgbArray(color);
+  } catch {
+    // If the color can't be parsed (e.g., a CSS var), default to no blending.
+    return false;
+  }
+  const chroma = rgbChroma(rgb);
+  const lightness = rgbLightness(rgb);
+  const { chromaCutoff = 0.08, minLightness = 0.28, maxLightness = 0.75 } = opts ?? {};
+  const isNearGray = chroma < chromaCutoff;
+  const isMidLightness = lightness > minLightness && lightness < maxLightness;
+  return !(isNearGray && isMidLightness);
+}
+
+/**
+ * Convenience helper to detect a near-neutral, mid-lightness color.
+ */
+export function isNearNeutralMid(color: string, opts?: BlendHeuristicOptions): boolean {
+  const { chromaCutoff = 0.08, minLightness = 0.28, maxLightness = 0.75 } = opts ?? {};
+  const c = colorChroma(color);
+  const l = colorLightness(color);
+  return c < chromaCutoff && l > minLightness && l < maxLightness;
+}
