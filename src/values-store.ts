@@ -40,11 +40,43 @@ export function mergeValueMaps(
 }
 
 /**
- * Standalone values store for high-frequency transient data.
+ * Standalone Zustand store for high-frequency transient values and velocities.
  *
- * `values` and `velocities` are written ~40 Hz during playback by the derived
- * orchestrator. Keeping them in a dedicated store prevents every other Zustand
- * subscriber on the main animation store from being notified on every tick.
+ * ## Why a separate store?
+ * During playback the derived orchestrator writes new interpolated values at
+ * ~40 Hz. Before extraction these writes hit the main animation/studio store,
+ * triggering every `subscribeWithSelector` subscriber to re-evaluate. Moving
+ * `values` and `velocities` here limits notification to the handful of
+ * consumers that actually need per-tick updates (device commands, scene
+ * rendering, animatable controls).
+ *
+ * ## Key formats
+ * Two key formats coexist in the maps:
+ * - **trackKey** (`namespaceId/instanceId/trackId`) — written by the derived
+ *   orchestrator during playback. Only meaningful to the animation system.
+ * - **dotKey** (`namespaceId.animatableId`) — used by scene rendering hooks
+ *   and device command subscriptions.
+ *
+ * The values-bridge subscription converts trackKey entries to dotKey entries
+ * so downstream consumers don't need to know about the animation layer.
+ *
+ * ## Dual-write contract with SceneData.values
+ * Scene rendering hooks (e.g. `useSceneStore`) read from the main store's
+ * `SceneData.values` map, **not** from this store. Any code path that writes
+ * **dotKey** values here **must also** write them to `SceneData.values` on the
+ * main store. This dual-write is currently performed by three sites:
+ *
+ * 1. `values-bridge-subscription.ts` — converts trackKey → dotKey during
+ *    playback and writes both stores.
+ * 2. `values-actions.ts` (`setValueDirectAction`) — direct user edits via
+ *    animatable controls.
+ * 3. `device-subscriptions.ts` (`onData` handler) — incoming device feedback.
+ *
+ * **trackKey-only writes do NOT need a dual-write** because the values-bridge
+ * subscription automatically converts them to dotKeys.
+ *
+ * If you add a new code path that writes dotKey values, you must follow the
+ * same dual-write pattern or scene rendering will not reflect the change.
  */
 export const useValuesStore = create<ValuesStore>()(
   subscribeWithSelector((set) => ({
