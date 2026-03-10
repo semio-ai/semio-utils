@@ -277,6 +277,22 @@ export function instanceOfRawHSL(object: any): object is RawHSL {
   return object.h !== undefined && object.s !== undefined && object.l !== undefined;
 }
 
+/**
+ * Logs a console warning when a feature callback receives a value of an unexpected type.
+ * Use this in `useFeatures` callbacks to surface data-flow issues early.
+ *
+ * @param feature  - The feature key (e.g. "translation.x", "jointValue").
+ * @param expected - Human-readable description of the expected type(s) (e.g. "number", "number | string").
+ * @param value    - The actual value received.
+ */
+export function warnUnexpectedFeatureValue(feature: string, expected: string, value: unknown): void {
+  // eslint-disable-next-line no-console -- intentional diagnostic for invalid feature data
+  console.warn(
+    `Feature "${feature}" expected ${expected}, received ${typeof value}:`,
+    value,
+  );
+}
+
 export function isRawObject(value: any) {
   if (
     instanceOfRawVector3(value) ||
