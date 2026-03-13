@@ -46,10 +46,32 @@ export interface AnimatablePubInfo {
   color?: string;
 }
 
-export type AnimatableValue =
-  | AnimatableBoolean
-  | AnimatableNumber
-  | AnimatableString
+export enum AnimatableGroupType {
+  Vector2 = "vector2",
+  Vector3 = "vector3",
+  Euler = "euler",
+  RGB = "rgb",
+  HSL = "hsl",
+  Group = "group",
+}
+
+export interface AnimatableGroupInfo {
+  /** Stable group UUID used to associate related simple animatables. */
+  id: string;
+  /** Composite group type for editor grouping semantics. */
+  type: AnimatableGroupType;
+  /** Optional axis label (x/y/z or r/p/y) for disambiguation. */
+  axis?: string;
+  /** Optional ordering hint within the group. */
+  order?: number;
+}
+
+export type AnimatableValue = AnimatableBoolean | AnimatableNumber | AnimatableString;
+
+/**
+ * @deprecated Complex animatables should be flattened into scalar values.
+ */
+export type DeprecatedComplexAnimatableValue =
   | AnimatableVector3
   | AnimatableVector2
   | AnimatableEuler
@@ -74,6 +96,7 @@ export interface AnimatableBoolean {
     frequency?: number;
   };
   pub?: AnimatablePubInfo;
+  group?: AnimatableGroupInfo;
 }
 
 /**
@@ -98,6 +121,7 @@ export interface AnimatableNumber {
     velocity?: number;
   };
   pub?: AnimatablePubInfo;
+  group?: AnimatableGroupInfo;
 }
 
 /**
@@ -119,6 +143,7 @@ export interface AnimatableString {
     length?: number;
   };
   pub?: AnimatablePubInfo;
+  group?: AnimatableGroupInfo;
 }
 
 /**
@@ -250,6 +275,22 @@ export function instanceOfRawRGB(object: any): object is RawRGB {
 
 export function instanceOfRawHSL(object: any): object is RawHSL {
   return object.h !== undefined && object.s !== undefined && object.l !== undefined;
+}
+
+/**
+ * Logs a console warning when a feature callback receives a value of an unexpected type.
+ * Use this in `useFeatures` callbacks to surface data-flow issues early.
+ *
+ * @param feature  - The feature key (e.g. "translation.x", "jointValue").
+ * @param expected - Human-readable description of the expected type(s) (e.g. "number", "number | string").
+ * @param value    - The actual value received.
+ */
+export function warnUnexpectedFeatureValue(feature: string, expected: string, value: unknown): void {
+  // eslint-disable-next-line no-console -- intentional diagnostic for invalid feature data
+  console.warn(
+    `Feature "${feature}" expected ${expected}, received ${typeof value}:`,
+    value,
+  );
 }
 
 export function isRawObject(value: any) {
