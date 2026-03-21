@@ -16,7 +16,7 @@ import deepEqual from "deep-equal";
  * ```
  */
 export function useDeepSelector<S, U>(selector: (state: S) => U): (state: S) => U {
-  const prev = useRef<U>();
+  const prev = useRef<U>(undefined);
 
   return (state) => {
     const next = selector(state);
@@ -41,7 +41,7 @@ export function useDeepSelector<S, U>(selector: (state: S) => U): (state: S) => 
  * ```
  */
 export function useDeep<V, D>(initializer: () => V, dependencies: D[]): V {
-  const prevValue = useRef<V>();
+  const prevValue = useRef<V>(undefined);
   const prevDependencies = useRef<D[]>([]);
 
   return deepEqual(prevDependencies.current, dependencies)
