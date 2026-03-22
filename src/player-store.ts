@@ -90,7 +90,7 @@ export type PlayerStoreSetter = (
     | ((
         state: PlayerData & PlayerActions,
       ) => (PlayerData & PlayerActions) | Partial<PlayerData & PlayerActions>),
-  replace?: false  ,
+  replace?: false,
 ) => void;
 
 export type PlayerStoreGetter = () => PlayerData & PlayerActions;
