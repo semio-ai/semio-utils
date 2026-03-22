@@ -286,7 +286,7 @@ export function instanceOfRawHSL(object: any): object is RawHSL {
  * @param value    - The actual value received.
  */
 export function warnUnexpectedFeatureValue(feature: string, expected: string, value: unknown): void {
-  // eslint-disable-next-line no-console -- intentional diagnostic for invalid feature data
+   
   console.warn(
     `Feature "${feature}" expected ${expected}, received ${typeof value}:`,
     value,
