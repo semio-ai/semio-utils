@@ -337,8 +337,8 @@ export function newPlayer(): Player {
 
 /**
  * Adjusts the proposed viewport to keep it centered on the playhead.
- * In v2 format, the viewport is in ms and can extend freely.
- * Only prevents the start from going below 0.
+ * In v2 format, the viewport is in ms and can extend freely in both
+ * directions (negative ms is valid for pre-roll content).
  *
  * @param playhead - The current position in milliseconds.
  * @param proposedViewport - The proposed viewport as a tuple [start, end] in ms.
@@ -350,9 +350,6 @@ const getFittedViewport = (
 ): [number, number] => {
   const viewportWidth = proposedViewport[1] - proposedViewport[0];
   const proposedLeft = playhead - viewportWidth / 2;
-  if (proposedLeft < 0) {
-    return [0, viewportWidth];
-  }
   return [proposedLeft, proposedLeft + viewportWidth];
 };
 
