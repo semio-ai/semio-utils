@@ -12,7 +12,7 @@ export * from "./angles";
 export * from "./colors";
 export * from "./use-deep";
 export * from "./use-media-query";
-export * from "./zustand";
+export type * from "./zustand";
 export * from "./json";
 export * from "./download";
 export * from "./points-to-path";
