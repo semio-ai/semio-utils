@@ -11,14 +11,14 @@ export enum PlayerDirection {
 /**
  * A timer implementation for managing animation playback.
  *
- * The timer operates on a normalized time range of [0, 1], where:
+ * The timer operates in milliseconds, where:
  * - 0 represents the start of the animation
- * - 1 represents the end of the animation
+ * - duration (in ms) represents the end of the animation
  *
  * @property running - Whether the timer is actively running
  * @property _previousTime - The last update time in milliseconds
  * @property _currentTime - The current time in milliseconds
- * @property stamp - Current normalized time position [0, 1]
+ * @property stamp - Current time position in milliseconds
  * @property speed - Playback speed multiplier (always positive)
  * @property direction - Initial playback direction (PlayerDirection.Forward or PlayerDirection.Reverse)
  * @property _currentDirection - Current actual movement direction during bouncing
@@ -48,7 +48,7 @@ export interface Player {
 /**
  * Creates a copy of the provided timer, but updated with the new timestamp.
  * @param timer - the timer to be updated
- * @param stamp - the new timestamp in the range [0, 1]
+ * @param stamp - the new timestamp in milliseconds
  * @returns the updated timer
  */
 export function reset(player: Player, stamp?: number): Player {
@@ -170,7 +170,7 @@ export function updated(player: Player, coldStart: boolean): Player {
     p.stamp = updatedStamp;
   }
 
-  const newNearViewportCenter = Math.abs(p.stamp - currentViewportCenter) < 0.01;
+  const newNearViewportCenter = Math.abs(p.stamp - currentViewportCenter) < 10;
 
   if (p.running && (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)) {
     p.viewport = getFittedViewport(p.stamp, p.viewport);
@@ -190,7 +190,7 @@ export function updated(player: Player, coldStart: boolean): Player {
 /**
  * Sets the bounds for the player.
  * @param player - the player to be updated
- * @param bounds - the new bounds in the range [0, 1]
+ * @param bounds - the new bounds in milliseconds [start, end]
  * @returns the updated player
  */
 export function withBounds(player: Player, bounds: [number, number]): Player {
@@ -202,7 +202,7 @@ export function withBounds(player: Player, bounds: [number, number]): Player {
 /**
  * Sets the viewport for the player
  * @param player - the player to be updated
- * @param viewport - the new viewport in the range [0, 1]
+ * @param viewport - the new viewport in milliseconds [start, end]
  * @returns the updated player
  */
 export function withViewport(player: Player, viewport: [number, number]): Player {
@@ -245,7 +245,7 @@ export function play(
 
   // Only jump to opposite boundary if we're AT a boundary that blocks further progress in the current direction
   // This allows playing from outside bounds toward the bounds naturally
-  const tolerance = 0.001; // Small tolerance for floating point comparison
+  const tolerance = 1; // 1ms tolerance for floating point comparison
 
   // If going forward and we're exactly at the end boundary, jump to start
   if (
@@ -308,13 +308,13 @@ export function withDuration(player: Player, duration: number): Player {
  * @returns A new Player instance initialized with:
  * - Not running
  * - Current timestamp
- * - Zero stamp position
+ * - Zero stamp position (0ms)
  * - Normal speed (1x)
  * - Forward direction
- * - Full bounds [0, 1]
+ * - Default bounds [0, 5000] ms
  * - Looping enabled, bounce disabled
- * - Full viewport [0, 1]
- * - 1000ms duration
+ * - Default viewport [0, 5000] ms
+ * - 5000ms duration
  */
 export function newPlayer(): Player {
   return {
