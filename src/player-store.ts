@@ -97,11 +97,26 @@ export type PlayerStoreGetter = () => PlayerData & PlayerActions;
 
 export const PlayerSlice = (set: PlayerStoreSetter) => ({
   player: newPlayer(),
-  // Set the duration of the player
+  // Set the duration of the player. Also updates bounds and viewport
+  // to reflect the new timeline extent in ms.
   updateDuration: (duration: number) => {
     set(
       produce((state: PlayerData) => {
+        const oldDuration = state.player.duration;
         state.player.duration = duration;
+        // Scale bounds and viewport proportionally if they matched the old duration
+        if (oldDuration > 0 && duration > 0) {
+          const scale = duration / oldDuration;
+          const b = state.player.bounds;
+          // Only rescale if bounds appear to be at the default [0, oldDuration]
+          if (Math.abs(b[1] - oldDuration) < 1) {
+            state.player.bounds = [b[0], duration];
+          }
+          const v = state.player.viewport;
+          if (Math.abs(v[1] - oldDuration) < 1) {
+            state.player.viewport = [v[0], duration];
+          }
+        }
       }),
     );
   },

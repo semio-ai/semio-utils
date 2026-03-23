@@ -22,11 +22,11 @@ export enum PlayerDirection {
  * @property speed - Playback speed multiplier (always positive)
  * @property direction - Initial playback direction (PlayerDirection.Forward or PlayerDirection.Reverse)
  * @property _currentDirection - Current actual movement direction during bouncing
- * @property bounds - Constrains playback to a [start, end] range within [0, 1]
+ * @property bounds - Constrains playback to a [start, end] range in milliseconds
  * @property bounce - Whether to reverse direction when reaching bounds
  * @property looping - Whether to continue playing after reaching bounds
- * @property viewport - Visible time range as [start, end] within [0, 1]
- * @property duration - Total animation duration in milliseconds
+ * @property viewport - Visible time range as [start, end] in milliseconds
+ * @property duration - Total animation duration in milliseconds (used for playback stepping)
  */
 export interface Player {
   running: boolean;
@@ -87,7 +87,8 @@ export function updated(player: Player, coldStart: boolean): Player {
 
   const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
-  const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 0.01;
+  // Threshold for "near center" in ms (10ms)
+  const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 10;
 
   // Check if player has entered the specified bounds
   if (currentInBounds && !p._enteredBounds) {
@@ -97,15 +98,16 @@ export function updated(player: Player, coldStart: boolean): Player {
   // Calculate effective timescale from speed and current direction
   const effectiveTimescale = p.speed * (p._currentDirection === PlayerDirection.Forward ? 1 : -1);
 
-  // Compute the time delta between the two raw times, multiplied by the effective timescale
-  const delta = ((p._currentTime - p._previousTime) * effectiveTimescale) / duration;
+  // Compute the time delta in ms, multiplied by the effective speed.
+  // In v2 format, stamp is in ms — no normalization by duration needed.
+  const delta = (p._currentTime - p._previousTime) * effectiveTimescale;
 
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
 
-  // Use full range [0, 1] as bounds when outside specified bounds and haven't entered them yet
+  // Use full range [0, duration] as bounds when outside specified bounds and haven't entered them yet
   // Otherwise use the actual bounds
-  const [start, end] = !p._enteredBounds && !currentInBounds ? [0, 1] : p.bounds;
+  const [start, end] = !p._enteredBounds && !currentInBounds ? [0, duration] : p.bounds;
 
   let attachOverride = false;
 
@@ -325,20 +327,22 @@ export function newPlayer(): Player {
     _currentDirection: PlayerDirection.Forward,
     _bounced: false,
     _enteredBounds: false,
-    bounds: [0, 1],
+    bounds: [0, 5000],
     bounce: false,
     looping: true,
-    viewport: [0, 1],
-    duration: 1000,
+    viewport: [0, 5000],
+    duration: 5000,
   };
 }
 
 /**
- * Adjusts the proposed viewport to ensure it fits within the bounds [0, 1].
+ * Adjusts the proposed viewport to keep it centered on the playhead.
+ * In v2 format, the viewport is in ms and can extend freely.
+ * Only prevents the start from going below 0.
  *
- * @param playhead - The current position within the range [0, 1].
- * @param proposedViewport - The proposed viewport as a tuple [start, end].
- * @returns A tuple representing the adjusted viewport [start, end] that fits within the bounds [0, 1].
+ * @param playhead - The current position in milliseconds.
+ * @param proposedViewport - The proposed viewport as a tuple [start, end] in ms.
+ * @returns A tuple representing the adjusted viewport [start, end].
  */
 const getFittedViewport = (
   playhead: number,
@@ -346,14 +350,10 @@ const getFittedViewport = (
 ): [number, number] => {
   const viewportWidth = proposedViewport[1] - proposedViewport[0];
   const proposedLeft = playhead - viewportWidth / 2;
-  const proposedRight = playhead + viewportWidth / 2;
-  if (proposedLeft >= 0 && proposedRight <= 1) {
-    return [playhead - viewportWidth / 2, playhead + viewportWidth / 2];
-  } else if (proposedLeft < 0) {
+  if (proposedLeft < 0) {
     return [0, viewportWidth];
-  } else {
-    return [1 - viewportWidth, 1];
   }
+  return [proposedLeft, proposedLeft + viewportWidth];
 };
 
 /**
