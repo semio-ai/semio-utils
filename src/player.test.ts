@@ -32,11 +32,11 @@ describe("Player", () => {
       expect(player._currentDirection).toBe(PlayerDirection.Forward);
       expect(player._bounced).toBe(false);
       expect(player._enteredBounds).toBe(false);
-      expect(player.bounds).toEqual([0, 1]);
+      expect(player.bounds).toEqual([0, 5000]);
       expect(player.bounce).toBe(false);
       expect(player.looping).toBe(true);
-      expect(player.viewport).toEqual([0, 1]);
-      expect(player.duration).toBe(1000);
+      expect(player.viewport).toEqual([0, 5000]);
+      expect(player.duration).toBe(5000);
     });
   });
 
@@ -62,52 +62,52 @@ describe("Player", () => {
       it("moves to end when playing reverse from start", () => {
         const playerAtStart = { ...player, stamp: 0 };
         const playingPlayer = play(playerAtStart, undefined, PlayerDirection.Reverse);
-        expect(playingPlayer.stamp).toBe(1); // Should move to end of bounds
+        expect(playingPlayer.stamp).toBe(5000); // Should move to end of bounds
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Reverse);
       });
 
       it("moves to end when playing reverse from near start", () => {
         const playerNearStart = { ...player, stamp: 0.0005 };
         const playingPlayer = play(playerNearStart, undefined, PlayerDirection.Reverse);
-        expect(playingPlayer.stamp).toBe(1); // Should move to end of bounds
+        expect(playingPlayer.stamp).toBe(5000); // Should move to end of bounds
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Reverse);
       });
 
       it("does not move when playing reverse from middle", () => {
-        const playerInMiddle = { ...player, stamp: 0.5 };
+        const playerInMiddle = { ...player, stamp: 2500 };
         const playingPlayer = play(playerInMiddle, undefined, PlayerDirection.Reverse);
-        expect(playingPlayer.stamp).toBe(0.5); // Should stay in middle
+        expect(playingPlayer.stamp).toBe(2500); // Should stay in middle
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Reverse);
       });
 
       it("respects custom bounds when playing reverse", () => {
-        const boundedPlayer = withBounds(player, [0.2, 0.8]);
-        const playerAtBoundStart = { ...boundedPlayer, stamp: 0.2 };
+        const boundedPlayer = withBounds(player, [1000, 4000]);
+        const playerAtBoundStart = { ...boundedPlayer, stamp: 1000 };
         const playingPlayer = play(playerAtBoundStart, undefined, PlayerDirection.Reverse);
-        expect(playingPlayer.stamp).toBe(0.8); // Should move to end of custom bounds
+        expect(playingPlayer.stamp).toBe(4000); // Should move to end of custom bounds
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Reverse);
       });
     });
 
     describe("forward playback positioning", () => {
       it("moves to start when playing forward from end", () => {
-        const playerAtEnd = { ...player, stamp: 1 };
+        const playerAtEnd = { ...player, stamp: 5000 };
         const playingPlayer = play(playerAtEnd, undefined, PlayerDirection.Forward);
         expect(playingPlayer.stamp).toBe(0); // Should move to start of bounds
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Forward);
       });
 
       it("moves to start when playing forward from near end", () => {
-        const playerNearEnd = { ...player, stamp: 0.9995 };
+        const playerNearEnd = { ...player, stamp: 4999.9995 };
         const playingPlayer = play(playerNearEnd, undefined, PlayerDirection.Forward);
         expect(playingPlayer.stamp).toBe(0); // Should move to start of bounds
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Forward);
       });
 
       it("does not move when playing forward from middle", () => {
-        const playerInMiddle = { ...player, stamp: 0.5 };
+        const playerInMiddle = { ...player, stamp: 2500 };
         const playingPlayer = play(playerInMiddle, undefined, PlayerDirection.Forward);
-        expect(playingPlayer.stamp).toBe(0.5); // Should stay in middle
+        expect(playingPlayer.stamp).toBe(2500); // Should stay in middle
         expect(playingPlayer._currentDirection).toBe(PlayerDirection.Forward);
       });
     });
@@ -115,7 +115,7 @@ describe("Player", () => {
     describe("no loop, no bounce mode", () => {
       it("resets to start when playing forward after completion", () => {
         const oncePlayer = withBounce(withLooping(player, false), false);
-        const playerAtEnd = { ...oncePlayer, stamp: 1 };
+        const playerAtEnd = { ...oncePlayer, stamp: 5000 };
         const playingPlayer = play(playerAtEnd, undefined, PlayerDirection.Forward);
         expect(playingPlayer.stamp).toBe(0);
       });
@@ -124,7 +124,7 @@ describe("Player", () => {
         const oncePlayer = withBounce(withLooping(player, false), false);
         const playerAtStart = { ...oncePlayer, stamp: 0 };
         const playingPlayer = play(playerAtStart, undefined, PlayerDirection.Reverse);
-        expect(playingPlayer.stamp).toBe(1);
+        expect(playingPlayer.stamp).toBe(5000);
       });
     });
   });
@@ -235,8 +235,8 @@ describe("Player", () => {
 
   describe("withBounds", () => {
     it("sets new bounds", () => {
-      const boundedPlayer = withBounds(player, [0.2, 0.8]);
-      expect(boundedPlayer.bounds).toEqual([0.2, 0.8]);
+      const boundedPlayer = withBounds(player, [1000, 4000]);
+      expect(boundedPlayer.bounds).toEqual([1000, 4000]);
     });
   });
 
@@ -249,15 +249,15 @@ describe("Player", () => {
 
   describe("reset", () => {
     it("resets to stamp 0 by default", () => {
-      const modifiedPlayer = { ...player, stamp: 0.5 };
+      const modifiedPlayer = { ...player, stamp: 2500 };
       const resetPlayer = reset(modifiedPlayer);
       expect(resetPlayer.stamp).toBe(0);
     });
 
     it("resets to specified stamp", () => {
-      const modifiedPlayer = { ...player, stamp: 0.5 };
-      const resetPlayer = reset(modifiedPlayer, 0.7);
-      expect(resetPlayer.stamp).toBe(0.7);
+      const modifiedPlayer = { ...player, stamp: 2500 };
+      const resetPlayer = reset(modifiedPlayer, 3500);
+      expect(resetPlayer.stamp).toBe(3500);
     });
 
     it("updates timestamps", () => {
@@ -310,11 +310,11 @@ describe("Player", () => {
       const bouncePlayer = withBounce(player, true);
       const playerAtEnd = {
         ...bouncePlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const,
       };
       const updatedPlayer = updated(playerAtEnd, false);
-      expect(updatedPlayer.stamp).toBe(1); // Clamped to boundary
+      expect(updatedPlayer.stamp).toBe(5000); // Clamped to boundary
       expect(updatedPlayer._currentDirection).toBe(PlayerDirection.Reverse); // Direction reversed
       expect(updatedPlayer.direction).toBe(PlayerDirection.Forward); // Original direction unchanged
       expect(updatedPlayer._bounced).toBe(true); // Bounce state set
@@ -324,7 +324,7 @@ describe("Player", () => {
       const bouncePlayer = withBounce(player, true);
       const playerAtStart = {
         ...bouncePlayer,
-        stamp: -0.1, // Past start boundary
+        stamp: -500, // Past start boundary
         _currentDirection: PlayerDirection.Reverse as const,
       };
       const updatedPlayer = updated(playerAtStart, false);
@@ -340,14 +340,14 @@ describe("Player", () => {
       // First bounce at end boundary
       const testPlayer = {
         ...bounceOncePlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const,
         _bounced: false,
         running: true,
       };
 
       const afterFirstBounce = updated(testPlayer, false);
-      expect(afterFirstBounce.stamp).toBe(1); // Clamped to boundary
+      expect(afterFirstBounce.stamp).toBe(5000); // Clamped to boundary
       expect(afterFirstBounce._currentDirection).toBe(PlayerDirection.Reverse); // Direction reversed
       expect(afterFirstBounce._bounced).toBe(true); // Bounce state set
       expect(afterFirstBounce.running).toBe(true); // Still running
@@ -355,7 +355,7 @@ describe("Player", () => {
       // Try to bounce again at start boundary - should stop instead
       const playerAtStartAfterBounce = {
         ...afterFirstBounce,
-        stamp: -0.1, // Past start boundary
+        stamp: -500, // Past start boundary
       };
 
       const afterSecondAttempt = updated(playerAtStartAfterBounce, false);
@@ -370,7 +370,7 @@ describe("Player", () => {
       // First bounce at end boundary
       const testPlayer = {
         ...continuousBouncePlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const,
         _bounced: false,
         running: true,
@@ -383,7 +383,7 @@ describe("Player", () => {
       // Second bounce at start boundary - should continue bouncing
       const playerAtStartAfterBounce = {
         ...afterFirstBounce,
-        stamp: -0.1, // Past start boundary
+        stamp: -500, // Past start boundary
       };
 
       const afterSecondBounce = updated(playerAtStartAfterBounce, false);
@@ -398,7 +398,7 @@ describe("Player", () => {
       const loopPlayer = withBounce(withLooping(player, true), false);
       const playerAtEnd = {
         ...loopPlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const,
         running: true,
       };
@@ -412,12 +412,12 @@ describe("Player", () => {
       const loopPlayer = withBounce(withLooping(player, true), false);
       const playerAtStart = {
         ...loopPlayer,
-        stamp: -0.1, // Past start boundary
+        stamp: -500, // Past start boundary
         _currentDirection: PlayerDirection.Reverse as const,
         running: true,
       };
       const updatedPlayer = updated(playerAtStart, false);
-      expect(updatedPlayer.stamp).toBe(1); // Looped to end
+      expect(updatedPlayer.stamp).toBe(5000); // Looped to end
       expect(updatedPlayer._currentDirection).toBe(PlayerDirection.Reverse); // Direction unchanged
       expect(updatedPlayer.running).toBe(true); // Still running
     });
@@ -428,12 +428,12 @@ describe("Player", () => {
       const stopPlayer = withBounce(withLooping(player, false), false);
       const playerAtEnd = {
         ...stopPlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const,
         running: true,
       };
       const updatedPlayer = updated(playerAtEnd, false);
-      expect(updatedPlayer.stamp).toBe(1); // Stopped at boundary
+      expect(updatedPlayer.stamp).toBe(5000); // Stopped at boundary
       expect(updatedPlayer._currentDirection).toBe(PlayerDirection.Forward); // Direction unchanged
       expect(updatedPlayer.running).toBe(false); // Stopped running
     });
@@ -442,7 +442,7 @@ describe("Player", () => {
       const stopPlayer = withBounce(withLooping(player, false), false);
       const playerAtStart = {
         ...stopPlayer,
-        stamp: -0.1, // Past start boundary
+        stamp: -500, // Past start boundary
         _currentDirection: PlayerDirection.Reverse as const,
         running: true,
       };
@@ -460,12 +460,12 @@ describe("Player", () => {
       // Test forward to end boundary - should bounce to reverse
       const playerGoingForward = {
         ...bounceLoopPlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const,
         running: true,
       };
       const afterFirstBounce = updated(playerGoingForward, false);
-      expect(afterFirstBounce.stamp).toBe(1); // Clamped to end
+      expect(afterFirstBounce.stamp).toBe(5000); // Clamped to end
       expect(afterFirstBounce._currentDirection).toBe(PlayerDirection.Reverse); // Bounced to reverse
       expect(afterFirstBounce.direction).toBe(PlayerDirection.Forward); // Original direction unchanged
       expect(afterFirstBounce.running).toBe(true); // Still running
@@ -473,7 +473,7 @@ describe("Player", () => {
       // Test reverse to start boundary - should bounce back to forward
       const playerGoingReverse = {
         ...afterFirstBounce,
-        stamp: -0.1, // Past start boundary
+        stamp: -500, // Past start boundary
       };
       const afterSecondBounce = updated(playerGoingReverse, false);
       expect(afterSecondBounce.stamp).toBe(0); // Clamped to start
@@ -491,12 +491,12 @@ describe("Player", () => {
       // Even though direction is PlayerDirection.Reverse, bouncing should work the same
       const playerAtEnd = {
         ...bounceLoopPlayer,
-        stamp: 1.1, // Past end boundary
+        stamp: 5500, // Past end boundary
         _currentDirection: PlayerDirection.Forward as const, // Current direction can be different from base direction
         running: true,
       };
       const updatedPlayer = updated(playerAtEnd, false);
-      expect(updatedPlayer.stamp).toBe(1); // Clamped to boundary
+      expect(updatedPlayer.stamp).toBe(5000); // Clamped to boundary
       expect(updatedPlayer._currentDirection).toBe(PlayerDirection.Reverse); // Bounced
       expect(updatedPlayer.direction).toBe(PlayerDirection.Reverse); // Base direction unchanged
       expect(updatedPlayer.running).toBe(true); // Still running
@@ -505,18 +505,18 @@ describe("Player", () => {
     it("allows mixed bounce/looping behavior with custom bounds", () => {
       const customBounceLoopPlayer = withBounds(
         withBounce(withLooping(player, true), true),
-        [0.2, 0.8],
+        [1000, 4000],
       );
 
       const playerAtCustomEnd = {
         ...customBounceLoopPlayer,
-        stamp: 0.85, // Past custom end boundary
+        stamp: 4250, // Past custom end boundary
         _currentDirection: PlayerDirection.Forward as const,
         _enteredBounds: true, // Should have entered bounds to be using specified bounds
         running: true,
       };
       const updatedPlayer = updated(playerAtCustomEnd, false);
-      expect(updatedPlayer.stamp).toBe(0.8); // Clamped to custom end
+      expect(updatedPlayer.stamp).toBe(4000); // Clamped to custom end
       expect(updatedPlayer._currentDirection).toBe(PlayerDirection.Reverse); // Bounced
       expect(updatedPlayer.running).toBe(true); // Still running
     });
@@ -524,147 +524,147 @@ describe("Player", () => {
 
   describe("playing from outside bounds", () => {
     it("plays naturally from before bounds toward bounds when going forward", () => {
-      const boundedPlayer = withBounds(player, [0.3, 0.7]);
+      const boundedPlayer = withBounds(player, [1500, 3500]);
       const playerBeforeBounds = {
         ...boundedPlayer,
-        stamp: 0.1, // Before bounds start
+        stamp: 500, // Before bounds start
         _currentDirection: PlayerDirection.Forward as const,
       };
       const playingPlayer = play(playerBeforeBounds, undefined, PlayerDirection.Forward);
 
       // Should not jump to bounds, should play from current position
-      expect(playingPlayer.stamp).toBe(0.1);
+      expect(playingPlayer.stamp).toBe(500);
       expect(playingPlayer._currentDirection).toBe(PlayerDirection.Forward);
       expect(playingPlayer.running).toBe(true);
     });
 
     it("plays naturally from after bounds toward bounds when going reverse", () => {
-      const boundedPlayer = withBounds(player, [0.3, 0.7]);
+      const boundedPlayer = withBounds(player, [1500, 3500]);
       const playerAfterBounds = {
         ...boundedPlayer,
-        stamp: 0.9, // After bounds end
+        stamp: 4500, // After bounds end
         _currentDirection: PlayerDirection.Reverse as const,
       };
       const playingPlayer = play(playerAfterBounds, undefined, PlayerDirection.Reverse);
 
       // Should not jump to bounds, should play from current position
-      expect(playingPlayer.stamp).toBe(0.9);
+      expect(playingPlayer.stamp).toBe(4500);
       expect(playingPlayer._currentDirection).toBe(PlayerDirection.Reverse);
       expect(playingPlayer.running).toBe(true);
     });
 
     it("only jumps when exactly at a boundary that blocks progress", () => {
-      const boundedPlayer = withBounds(player, [0.3, 0.7]);
+      const boundedPlayer = withBounds(player, [1500, 3500]);
 
       // At end boundary going forward - should jump to start
       const playerAtEndGoingForward = {
         ...boundedPlayer,
-        stamp: 0.7, // Exactly at end boundary
+        stamp: 3500, // Exactly at end boundary
         _currentDirection: PlayerDirection.Forward as const,
       };
       const jumpedToStart = play(playerAtEndGoingForward, undefined, PlayerDirection.Forward);
-      expect(jumpedToStart.stamp).toBe(0.3); // Jumped to start
+      expect(jumpedToStart.stamp).toBe(1500); // Jumped to start
 
       // At start boundary going reverse - should jump to end
       const playerAtStartGoingReverse = {
         ...boundedPlayer,
-        stamp: 0.3, // Exactly at start boundary
+        stamp: 1500, // Exactly at start boundary
         _currentDirection: PlayerDirection.Reverse as const,
       };
       const jumpedToEnd = play(playerAtStartGoingReverse, undefined, PlayerDirection.Reverse);
-      expect(jumpedToEnd.stamp).toBe(0.7); // Jumped to end
+      expect(jumpedToEnd.stamp).toBe(3500); // Jumped to end
     });
 
     it("does not jump when outside bounds but not blocked", () => {
-      const boundedPlayer = withBounds(player, [0.3, 0.7]);
+      const boundedPlayer = withBounds(player, [1500, 3500]);
 
       // Outside bounds but can make progress toward bounds
       const playerOutsideBounds = {
         ...boundedPlayer,
-        stamp: 0.1, // Before bounds
+        stamp: 500, // Before bounds
         _currentDirection: PlayerDirection.Forward as const,
       };
       const shouldNotJump = play(playerOutsideBounds, undefined, PlayerDirection.Forward);
-      expect(shouldNotJump.stamp).toBe(0.1); // Should stay at current position
+      expect(shouldNotJump.stamp).toBe(500); // Should stay at current position
 
       // Going away from bounds - should also not jump
       const playerGoingAway = {
         ...boundedPlayer,
-        stamp: 0.1, // Before bounds
+        stamp: 500, // Before bounds
         _currentDirection: PlayerDirection.Reverse as const, // Going away from bounds
       };
       const shouldAlsoNotJump = play(playerGoingAway, undefined, PlayerDirection.Reverse);
-      expect(shouldAlsoNotJump.stamp).toBe(0.1); // Should stay at current position
+      expect(shouldAlsoNotJump.stamp).toBe(500); // Should stay at current position
     });
 
     it("handles realistic scenario: outside bounds → enter bounds → respect boundary behavior", () => {
       // Test with bounce + looping enabled
-      const bounceLoopPlayer = withBounds(withBounce(withLooping(player, true), true), [0.4, 0.6]);
+      const bounceLoopPlayer = withBounds(withBounce(withLooping(player, true), true), [2000, 3000]);
 
       // Start outside bounds, going forward toward bounds
       const testPlayer = {
         ...bounceLoopPlayer,
-        stamp: 0.2, // Before bounds [0.4, 0.6]
+        stamp: 1000, // Before bounds [2000, 3000]
         _currentDirection: PlayerDirection.Forward as const,
         running: true,
       };
 
       // Simulate playing toward bounds - should not jump, just continue
       const startedPlayer = play(testPlayer, undefined, PlayerDirection.Forward);
-      expect(startedPlayer.stamp).toBe(0.2); // Should remain at starting position
+      expect(startedPlayer.stamp).toBe(1000); // Should remain at starting position
       expect(startedPlayer._currentDirection).toBe(PlayerDirection.Forward);
 
       // Simulate reaching the end boundary
       const playerAtEndBoundary = {
         ...startedPlayer,
-        stamp: 0.65, // Past end boundary
+        stamp: 3250, // Past end boundary
         _enteredBounds: true, // Should have entered bounds to be using specified bounds
       };
       const afterBoundaryHit = updated(playerAtEndBoundary, false);
-      expect(afterBoundaryHit.stamp).toBe(0.6); // Clamped to boundary
+      expect(afterBoundaryHit.stamp).toBe(3000); // Clamped to boundary
       expect(afterBoundaryHit._currentDirection).toBe(PlayerDirection.Reverse); // Bounced
       expect(afterBoundaryHit.direction).toBe(PlayerDirection.Forward); // Original direction preserved
       expect(afterBoundaryHit.running).toBe(true); // Still running due to looping
 
       // Test loop-only behavior (no bounce) from outside bounds
-      const loopOnlyPlayer = withBounds(withBounce(withLooping(player, true), false), [0.3, 0.8]);
+      const loopOnlyPlayer = withBounds(withBounce(withLooping(player, true), false), [1500, 4000]);
       const outsideLoopPlayer = {
         ...loopOnlyPlayer,
-        stamp: 0.1, // Before bounds
+        stamp: 500, // Before bounds
         _currentDirection: PlayerDirection.Forward as const,
         running: true,
       };
 
       // Should play naturally toward bounds
       const loopStarted = play(outsideLoopPlayer, undefined, PlayerDirection.Forward);
-      expect(loopStarted.stamp).toBe(0.1); // No jump
+      expect(loopStarted.stamp).toBe(500); // No jump
 
       // When reaching end of full range boundary, should loop back to start of full range (since not entered bounds yet)
       const loopPlayerAtEnd = {
         ...loopStarted,
-        stamp: 1.1, // Past end of full range [0,1]
+        stamp: 5500, // Past end of full range [0, 5000]
       };
       const afterLoop = updated(loopPlayerAtEnd, false);
-      expect(afterLoop.stamp).toBe(0); // Looped to start of full range [0,1], not specified bounds
+      expect(afterLoop.stamp).toBe(0); // Looped to start of full range [0, 5000], not specified bounds
       expect(afterLoop._currentDirection).toBe(PlayerDirection.Forward); // Direction unchanged
       expect(afterLoop.running).toBe(true); // Still running
     });
 
     it("does not jump when starting outside bounds - comprehensive validation", () => {
       // Test the exact scenario: bounds ahead of current stamp, should not jump when starting
-      const boundedPlayer = withBounds(withBounce(withLooping(player, true), false), [0.5, 0.8]);
+      const boundedPlayer = withBounds(withBounce(withLooping(player, true), false), [2500, 4000]);
 
       // Scenario 1: Start before bounds, play forward
       const testPlayer = {
         ...boundedPlayer,
-        stamp: 0.2, // Well before bounds [0.5, 0.8]
+        stamp: 1000, // Well before bounds [2500, 4000]
         _currentDirection: PlayerDirection.Forward as const,
         running: false, // Not running yet
       };
 
       // Start playing - should NOT jump to bounds
       const startedPlayer = play(testPlayer, undefined, PlayerDirection.Forward);
-      expect(startedPlayer.stamp).toBe(0.2); // Should remain at original position
+      expect(startedPlayer.stamp).toBe(1000); // Should remain at original position
       expect(startedPlayer._currentDirection).toBe(PlayerDirection.Forward);
       expect(startedPlayer.running).toBe(true);
 
@@ -673,47 +673,47 @@ describe("Player", () => {
       for (let i = 0; i < 5; i++) {
         updatedPlayer = updated(updatedPlayer, false);
         // Should gradually move toward bounds, not jump
-        expect(updatedPlayer.stamp).toBeGreaterThan(0.2);
-        expect(updatedPlayer.stamp).toBeLessThan(0.5); // Not yet at bounds
+        expect(updatedPlayer.stamp).toBeGreaterThan(1000);
+        expect(updatedPlayer.stamp).toBeLessThan(2500); // Not yet at bounds
         expect(updatedPlayer._currentDirection).toBe(PlayerDirection.Forward);
       }
 
       // Scenario 2: Start after bounds, play reverse
       const reverseTestPlayer = {
         ...boundedPlayer,
-        stamp: 0.9, // After bounds [0.5, 0.8]
+        stamp: 4500, // After bounds [2500, 4000]
         _currentDirection: PlayerDirection.Reverse as const,
         running: false,
       };
 
       const startedReverse = play(reverseTestPlayer, undefined, PlayerDirection.Reverse);
-      expect(startedReverse.stamp).toBe(0.9); // Should remain at original position
+      expect(startedReverse.stamp).toBe(4500); // Should remain at original position
       expect(startedReverse._currentDirection).toBe(PlayerDirection.Reverse);
       expect(startedReverse.running).toBe(true);
 
       // Verify boundary logic only applies when actually crossing bounds
       const crossingPlayer = {
         ...boundedPlayer,
-        stamp: 0.85, // Past end boundary, simulating having crossed it
+        stamp: 4250, // Past end boundary, simulating having crossed it
         _currentDirection: PlayerDirection.Forward as const,
         _enteredBounds: true, // Should have entered bounds to be using specified bounds
         running: true,
       };
 
       const afterCrossing = updated(crossingPlayer, false);
-      expect(afterCrossing.stamp).toBe(0.5); // Should loop back to start
+      expect(afterCrossing.stamp).toBe(2500); // Should loop back to start
       expect(afterCrossing._currentDirection).toBe(PlayerDirection.Forward); // Direction unchanged (no bounce)
       expect(afterCrossing.running).toBe(true); // Still running (looping enabled)
     });
 
     it("comprehensive test: bounce-once + direction reset after pause", () => {
       // Test both fixes working together
-      const bounceOncePlayer = withBounds(withBounce(withLooping(player, false), true), [0.2, 0.8]);
+      const bounceOncePlayer = withBounds(withBounce(withLooping(player, false), true), [1000, 4000]);
 
       // Start playing forward
       const testPlayer = {
         ...bounceOncePlayer,
-        stamp: 0.5, // In middle of bounds
+        stamp: 2500, // In middle of bounds
         direction: PlayerDirection.Forward as const,
         _currentDirection: PlayerDirection.Forward as const,
         _bounced: false,
@@ -728,12 +728,12 @@ describe("Player", () => {
       // Simulate reaching end boundary - should bounce once
       const playerAtEnd = {
         ...startedPlayer,
-        stamp: 0.85, // Past end boundary
+        stamp: 4250, // Past end boundary
         _enteredBounds: true, // Should have entered bounds to be using specified bounds
         running: true,
       };
       const afterBounce = updated(playerAtEnd, false);
-      expect(afterBounce.stamp).toBe(0.8); // Clamped to boundary
+      expect(afterBounce.stamp).toBe(4000); // Clamped to boundary
       expect(afterBounce._currentDirection).toBe(PlayerDirection.Reverse); // Bounced to reverse
       expect(afterBounce.direction).toBe(PlayerDirection.Forward); // Base direction unchanged
       expect(afterBounce._bounced).toBe(true); // Bounce state set
@@ -755,51 +755,51 @@ describe("Player", () => {
       // Now try to reach end boundary again - should bounce once more (since bounce state was reset)
       const playerAtEndAgain = {
         ...resumedPlayer,
-        stamp: 0.85, // Past end boundary again
+        stamp: 4250, // Past end boundary again
         _enteredBounds: true, // Should have entered bounds to be using specified bounds
       };
       const afterSecondBounce = updated(playerAtEndAgain, false);
-      expect(afterSecondBounce.stamp).toBe(0.8); // Bounced
+      expect(afterSecondBounce.stamp).toBe(4000); // Bounced
       expect(afterSecondBounce._currentDirection).toBe(PlayerDirection.Reverse); // Bounced
       expect(afterSecondBounce._bounced).toBe(true); // Bounce state set again
 
       // Try to bounce at start boundary - should NOT bounce (already bounced once)
       const playerAtStart = {
         ...afterSecondBounce,
-        stamp: 0.15, // Past start boundary
+        stamp: 750, // Past start boundary
         _enteredBounds: true, // Should have entered bounds to be using specified bounds
       };
       const afterSecondAttempt = updated(playerAtStart, false);
-      expect(afterSecondAttempt.stamp).toBe(0.2); // Stopped at boundary
+      expect(afterSecondAttempt.stamp).toBe(1000); // Stopped at boundary
       expect(afterSecondAttempt._currentDirection).toBe(PlayerDirection.Reverse); // Direction unchanged
       expect(afterSecondAttempt.running).toBe(false); // Stopped (no more bounces allowed)
     });
 
     it("uses full range as bounds when starting outside specified bounds", () => {
-      // Test the new behavior: use [0,1] as bounds until entering specified bounds
+      // Test the new behavior: use [0, 5000] as bounds until entering specified bounds
       const customBoundsPlayer = withBounds(
         withBounce(withLooping(player, false), false),
-        [0.3, 0.7],
+        [1500, 3500],
       );
 
       // Start outside bounds going forward (before bounds)
       const testPlayer = {
         ...customBoundsPlayer,
-        stamp: 0.1, // Before bounds [0.3, 0.7]
+        stamp: 500, // Before bounds [1500, 3500]
         _currentDirection: PlayerDirection.Forward as const,
         _bounced: false,
         _enteredBounds: false,
         running: false,
       };
 
-      // Start playing - should use [0,1] as effective bounds
+      // Start playing - should use [0, 5000] as effective bounds
       const startedPlayer = play(testPlayer);
       expect(startedPlayer._enteredBounds).toBe(false);
 
-      // Simulate moving towards the actual bounds - should use [0,1] bounds
+      // Simulate moving towards the actual bounds - should use [0, 5000] bounds
       const movingTowardBounds = {
         ...startedPlayer,
-        stamp: 0.2, // Still outside specified bounds
+        stamp: 1000, // Still outside specified bounds
         running: true,
       };
       const beforeEntering = updated(movingTowardBounds, false);
@@ -808,7 +808,7 @@ describe("Player", () => {
       // Simulate entering the specified bounds
       const enteringBounds = {
         ...beforeEntering,
-        stamp: 0.35, // Now inside bounds [0.3, 0.7]
+        stamp: 1750, // Now inside bounds [1500, 3500]
       };
       const afterEntering = updated(enteringBounds, false);
       expect(afterEntering._enteredBounds).toBe(true); // Should mark as entered
@@ -816,34 +816,34 @@ describe("Player", () => {
       // Now simulate going past the end of specified bounds - should use specified bounds
       const pastSpecifiedEnd = {
         ...afterEntering,
-        stamp: 0.75, // Past end of specified bounds
+        stamp: 3750, // Past end of specified bounds
       };
       const afterSpecifiedBoundary = updated(pastSpecifiedEnd, false);
-      expect(afterSpecifiedBoundary.stamp).toBe(0.7); // Should stop at specified boundary, not [0,1] boundary
+      expect(afterSpecifiedBoundary.stamp).toBe(3500); // Should stop at specified boundary, not [0, 5000] boundary
       expect(afterSpecifiedBoundary.running).toBe(false); // Should stop (no loop, no bounce)
 
       // Test starting outside bounds going reverse (after bounds)
       const reverseBoundsPlayer = withBounds(
         withBounce(withLooping(player, true), false),
-        [0.2, 0.6],
+        [1000, 3000],
       );
       const reverseTestPlayer = {
         ...reverseBoundsPlayer,
-        stamp: 0.8, // After bounds [0.2, 0.6]
+        stamp: 4000, // After bounds [1000, 3000]
         _currentDirection: PlayerDirection.Reverse as const,
         _bounced: false,
         _enteredBounds: false,
         running: true,
       };
 
-      // Should use [0,1] as bounds until entering specified bounds
+      // Should use [0, 5000] as bounds until entering specified bounds
       const reverseUpdate = updated(reverseTestPlayer, false);
       expect(reverseUpdate._enteredBounds).toBe(false); // Still outside
 
       // Simulate entering specified bounds from the high end
       const enteringFromHigh = {
         ...reverseUpdate,
-        stamp: 0.55, // Now inside bounds [0.2, 0.6]
+        stamp: 2750, // Now inside bounds [1000, 3000]
       };
       const afterEnteringFromHigh = updated(enteringFromHigh, false);
       expect(afterEnteringFromHigh._enteredBounds).toBe(true); // Should mark as entered
@@ -851,65 +851,65 @@ describe("Player", () => {
       // Test that it now uses specified bounds
       const pastSpecifiedStart = {
         ...afterEnteringFromHigh,
-        stamp: 0.15, // Past start of specified bounds
+        stamp: 750, // Past start of specified bounds
       };
       const afterSpecifiedStartBoundary = updated(pastSpecifiedStart, false);
-      expect(afterSpecifiedStartBoundary.stamp).toBe(0.6); // Should loop to end of specified bounds
+      expect(afterSpecifiedStartBoundary.stamp).toBe(3000); // Should loop to end of specified bounds
       expect(afterSpecifiedStartBoundary.running).toBe(true); // Should continue (looping enabled)
     });
 
     it("comprehensive test: full-range bounds behavior with all settings", () => {
-      // Test the complete behavior: use [0,1] until entering bounds, then switch to specified bounds
+      // Test the complete behavior: use [0, 5000] until entering bounds, then switch to specified bounds
 
-      // Scenario 1: No bounce, no loop - should stop at [0,1] boundaries before entering bounds
+      // Scenario 1: No bounce, no loop - should stop at [0, 5000] boundaries before entering bounds
       const noBounceNoLoopPlayer = withBounds(
         withBounce(withLooping(player, false), false),
-        [0.4, 0.6],
+        [2000, 3000],
       );
 
       const testPlayer1 = {
         ...noBounceNoLoopPlayer,
-        stamp: 0.1, // Outside bounds
+        stamp: 500, // Outside bounds
         _currentDirection: PlayerDirection.Forward as const,
         _enteredBounds: false,
         running: true,
       };
 
-      // Simulate hitting end of full range [0,1] while outside bounds
+      // Simulate hitting end of full range [0, 5000] while outside bounds
       const hitFullRangeEnd = {
         ...testPlayer1,
-        stamp: 1.1, // Past end of [0,1]
+        stamp: 5500, // Past end of [0, 5000]
       };
       const stoppedAtFullRange = updated(hitFullRangeEnd, false);
-      expect(stoppedAtFullRange.stamp).toBe(1); // Should stop at end of [0,1], not [0.4,0.6]
+      expect(stoppedAtFullRange.stamp).toBe(5000); // Should stop at end of [0, 5000], not [2000, 3000]
       expect(stoppedAtFullRange.running).toBe(false); // Should stop
       expect(stoppedAtFullRange._enteredBounds).toBe(false); // Never entered specified bounds
 
-      // Scenario 2: Bounce + loop - should bounce within [0,1] then switch to bounds behavior
-      const bounceLoopPlayer = withBounds(withBounce(withLooping(player, true), true), [0.3, 0.7]);
+      // Scenario 2: Bounce + loop - should bounce within [0, 5000] then switch to bounds behavior
+      const bounceLoopPlayer = withBounds(withBounce(withLooping(player, true), true), [1500, 3500]);
 
       const testPlayer2 = {
         ...bounceLoopPlayer,
-        stamp: 0.05, // Outside bounds, near start of [0,1]
+        stamp: 250, // Outside bounds, near start of [0, 5000]
         _currentDirection: PlayerDirection.Reverse as const,
         _enteredBounds: false,
         running: true,
       };
 
-      // Should bounce at start of [0,1], not at start of [0.3,0.7]
+      // Should bounce at start of [0, 5000], not at start of [1500, 3500]
       const hitFullRangeStart = {
         ...testPlayer2,
-        stamp: -0.1, // Past start of [0,1]
+        stamp: -500, // Past start of [0, 5000]
       };
       const bouncedAtFullRange = updated(hitFullRangeStart, false);
-      expect(bouncedAtFullRange.stamp).toBe(0); // Should bounce at start of [0,1]
+      expect(bouncedAtFullRange.stamp).toBe(0); // Should bounce at start of [0, 5000]
       expect(bouncedAtFullRange._currentDirection).toBe(PlayerDirection.Forward); // Should reverse direction
       expect(bouncedAtFullRange._enteredBounds).toBe(false); // Still outside specified bounds
 
       // Now simulate entering the specified bounds
       const enteringSpecifiedBounds = {
         ...bouncedAtFullRange,
-        stamp: 0.35, // Inside [0.3, 0.7]
+        stamp: 1750, // Inside [1500, 3500]
       };
       const afterEntering = updated(enteringSpecifiedBounds, false);
       expect(afterEntering._enteredBounds).toBe(true); // Should mark as entered
@@ -917,40 +917,40 @@ describe("Player", () => {
       // Now should use specified bounds for bouncing
       const hitSpecifiedEnd = {
         ...afterEntering,
-        stamp: 0.75, // Past end of [0.3, 0.7]
+        stamp: 3750, // Past end of [1500, 3500]
       };
       const bouncedAtSpecified = updated(hitSpecifiedEnd, false);
-      expect(bouncedAtSpecified.stamp).toBe(0.7); // Should bounce at end of [0.3, 0.7], not [0,1]
+      expect(bouncedAtSpecified.stamp).toBe(3500); // Should bounce at end of [1500, 3500], not [0, 5000]
       expect(bouncedAtSpecified._currentDirection).toBe(PlayerDirection.Reverse); // Should reverse direction
 
-      // Scenario 3: Loop only - should loop within [0,1] then switch to bounds behavior
-      const loopOnlyPlayer = withBounds(withBounce(withLooping(player, true), false), [0.2, 0.8]);
+      // Scenario 3: Loop only - should loop within [0, 5000] then switch to bounds behavior
+      const loopOnlyPlayer = withBounds(withBounce(withLooping(player, true), false), [1000, 4000]);
 
       const testPlayer3 = {
         ...loopOnlyPlayer,
-        stamp: 0.9, // Outside bounds, near end of [0,1]
+        stamp: 4500, // Outside bounds, near end of [0, 5000]
         _currentDirection: PlayerDirection.Forward as const,
         _enteredBounds: false,
         running: true,
       };
 
-      // Should loop at end of [0,1], not at end of [0.2, 0.8]
+      // Should loop at end of [0, 5000], not at end of [1000, 4000]
       const hitFullRangeEndLoop = {
         ...testPlayer3,
-        stamp: 1.1, // Past end of [0,1]
+        stamp: 5500, // Past end of [0, 5000]
       };
       const loopedAtFullRange = updated(hitFullRangeEndLoop, false);
-      expect(loopedAtFullRange.stamp).toBe(0); // Should loop to start of [0,1]
+      expect(loopedAtFullRange.stamp).toBe(0); // Should loop to start of [0, 5000]
       expect(loopedAtFullRange._currentDirection).toBe(PlayerDirection.Forward); // Direction unchanged
       expect(loopedAtFullRange._enteredBounds).toBe(false); // Still outside specified bounds
 
       // Scenario 4: Verify bounds entry detection works at exact boundaries
-      const exactBoundsPlayer = withBounds(player, [0.25, 0.75]);
+      const exactBoundsPlayer = withBounds(player, [1250, 3750]);
 
       // Test entering at exact start boundary
       const atExactStart = {
         ...exactBoundsPlayer,
-        stamp: 0.25, // Exactly at start boundary
+        stamp: 1250, // Exactly at start boundary
         _enteredBounds: false,
         running: true,
       };
@@ -960,7 +960,7 @@ describe("Player", () => {
       // Test entering at exact end boundary
       const atExactEnd = {
         ...exactBoundsPlayer,
-        stamp: 0.75, // Exactly at end boundary
+        stamp: 3750, // Exactly at end boundary
         _enteredBounds: false,
         running: true,
       };
