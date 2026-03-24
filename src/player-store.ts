@@ -106,7 +106,6 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
         state.player.duration = duration;
         // Scale bounds and viewport proportionally if they matched the old duration
         if (oldDuration > 0 && duration > 0) {
-          const scale = duration / oldDuration;
           const b = state.player.bounds;
           // Only rescale if bounds appear to be at the default [0, oldDuration]
           if (Math.abs(b[1] - oldDuration) < 1) {
