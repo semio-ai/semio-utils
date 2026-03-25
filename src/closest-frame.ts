@@ -1,14 +1,15 @@
 /**
- * Takes in the completion percentage and the total number of frames in an animation,
- * and returns the closest frame as a percentage of the whole animation's duration.
+ * Snaps a timestamp in milliseconds to the nearest frame boundary.
  *
- * @param completion - The completion of the animation from 0 to 1.
- * @param count - The number of frames in the animation.
- * @returns The closest frame number to the completion as a percentage of the total frames.
+ * @param stampMs - The timestamp in milliseconds.
+ * @param framerate - The framerate (frames per second).
+ * @returns The timestamp snapped to the nearest frame boundary in milliseconds.
  */
-function closestFrame(completion: number, count: number): number {
-  const frameIdx = Math.round(completion * count);
-  return frameIdx / count;
+function closestFrame(stampMs: number, framerate: number): number {
+  if (framerate <= 0) return stampMs;
+  const frameDurationMs = 1000 / framerate;
+  const frameIdx = Math.round(stampMs / frameDurationMs);
+  return frameIdx * frameDurationMs;
 }
 
 export { closestFrame };
