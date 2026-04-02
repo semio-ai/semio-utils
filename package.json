@@ -16,7 +16,8 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
-    "test:unit": "vitest"
+    "test:unit": "vitest run",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@semio/eslint-config": "*",
