@@ -28,6 +28,20 @@ export function mergeValueMaps(
   base: Map<string, RawValue | undefined>,
   updates: Map<string, RawValue | undefined>,
 ): Map<string, RawValue | undefined> {
+  if (updates.size === 0) return base;
+
+  // Check if any update actually differs before cloning
+  let hasChange = false;
+  updates.forEach((value, key) => {
+    if (hasChange) return;
+    if (value === undefined) {
+      if (base.has(key)) hasChange = true;
+    } else if (base.get(key) !== value) {
+      hasChange = true;
+    }
+  });
+  if (!hasChange) return base;
+
   const merged = new Map(base);
   updates.forEach((value, key) => {
     if (value === undefined) {
