@@ -15,13 +15,21 @@ export enum PlayerDirection {
  * - 0 represents the start of the animation
  * - duration (in ms) represents the end of the animation
  *
+ * Fields prefixed with `_` (e.g. `_previousTime`, `_currentDirection`,
+ * `_bounced`, `_enteredBounds`) are internal bookkeeping for the
+ * `updated()` tick function and should not be read by external
+ * consumers. They're on the public type because immutable spread-and-
+ * return pattern means every `withX` helper must roundtrip them.
+ *
  * @property running - Whether the timer is actively running
- * @property _previousTime - The last update time in milliseconds
- * @property _currentTime - The current time in milliseconds
+ * @property _previousTime - INTERNAL. Last update time in ms.
+ * @property _currentTime - INTERNAL. Current update time in ms.
  * @property stamp - Current time position in milliseconds
  * @property speed - Playback speed multiplier (always positive)
  * @property direction - Initial playback direction (PlayerDirection.Forward or PlayerDirection.Reverse)
- * @property _currentDirection - Current actual movement direction during bouncing
+ * @property _currentDirection - INTERNAL. Actual movement direction during bouncing.
+ * @property _bounced - INTERNAL. Whether the player has already bounced this run.
+ * @property _enteredBounds - INTERNAL. Whether the player has crossed into bounds at least once.
  * @property bounds - Constrains playback to a [start, end] range in milliseconds
  * @property bounce - Whether to reverse direction when reaching bounds
  * @property looping - Whether to continue playing after reaching bounds
@@ -401,16 +409,6 @@ export function reversed(player: Player): Player {
   p._bounced = false; // Reset bounce state when direction changes
   p._enteredBounds = false; // Reset bounds entry state when direction changes
   return p;
-}
-
-/**
- * Gets the effective timescale (speed * direction multiplier) for backwards compatibility.
- * @param player - the player to get timescale from
- * @returns the effective timescale
- * @deprecated Use speed and _currentDirection properties instead
- */
-export function getTimescale(player: Player): number {
-  return player.speed * (player._currentDirection === PlayerDirection.Forward ? 1 : -1);
 }
 
 /**
