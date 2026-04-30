@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
  */
 export function useLazy(value: boolean, timeout: number): boolean {
   const [lazy, setLazy] = useState(value);
-  const [timeoutValue, setTimeoutValue] = useState<NodeJS.Timeout | null>(null);
+  const [timeoutValue, setTimeoutValue] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (value) {
