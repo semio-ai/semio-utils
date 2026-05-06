@@ -53,6 +53,10 @@ export enum AnimatableGroupType {
   RGB = "rgb",
   HSL = "hsl",
   Group = "group",
+  /** Entity-level group (spans all instances for one entity/namespace). */
+  Entity = "entity",
+  /** Instance-level group (one animation instance within an entity). */
+  Instance = "instance",
 }
 
 export interface AnimatableGroupInfo {

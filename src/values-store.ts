@@ -28,6 +28,20 @@ export function mergeValueMaps(
   base: Map<string, RawValue | undefined>,
   updates: Map<string, RawValue | undefined>,
 ): Map<string, RawValue | undefined> {
+  if (updates.size === 0) return base;
+
+  // Check if any update actually differs before cloning
+  let hasChange = false;
+  updates.forEach((value, key) => {
+    if (hasChange) return;
+    if (value === undefined) {
+      if (base.has(key)) hasChange = true;
+    } else if (base.get(key) !== value) {
+      hasChange = true;
+    }
+  });
+  if (!hasChange) return base;
+
   const merged = new Map(base);
   updates.forEach((value, key) => {
     if (value === undefined) {
@@ -42,13 +56,18 @@ export function mergeValueMaps(
 /**
  * Standalone Zustand store for high-frequency transient values and velocities.
  *
- * ## Why a separate store?
+ * **Single source of truth for runtime animatable values.** Scene rendering,
+ * animation editor controls, and device commanders all read from this store.
+ * The studio/animation/scene stores own *structure* (animatables, tracks,
+ * world, namespaces); this store owns *current numeric state*.
+ *
+ * ## Why a separate store
  * During playback the derived orchestrator writes new interpolated values at
- * ~40 Hz. Before extraction these writes hit the main animation/studio store,
- * triggering every `subscribeWithSelector` subscriber to re-evaluate. Moving
- * `values` and `velocities` here limits notification to the handful of
- * consumers that actually need per-tick updates (device commands, scene
- * rendering, animatable controls).
+ * ~40 Hz. A dedicated store with `subscribeWithSelector` means only the
+ * consumers that need per-tick updates re-evaluate; subscribers of the other
+ * stores aren't woken on every tick. `mergeValueMaps` additionally returns
+ * the same Map reference when no values changed, so redundant writes don't
+ * fan out to subscribers.
  *
  * ## Key formats
  * Two key formats coexist in the maps:
@@ -57,26 +76,45 @@ export function mergeValueMaps(
  * - **dotKey** (`namespaceId.animatableId`) — used by scene rendering hooks
  *   and device command subscriptions.
  *
- * The values-bridge subscription converts trackKey entries to dotKey entries
- * so downstream consumers don't need to know about the animation layer.
+ * The values-bridge subscription (in `apps/studio`) converts trackKey entries
+ * into dotKey entries during playback so downstream consumers don't need to
+ * know about the animation layer.
  *
- * ## Dual-write contract with SceneData.values
- * Scene rendering hooks (e.g. `useSceneStore`) read from the main store's
- * `SceneData.values` map, **not** from this store. Any code path that writes
- * **dotKey** values here **must also** write them to `SceneData.values` on the
- * main store. This dual-write is currently performed by three sites:
+ * ## Readers
+ * - `useFeatures`, `useAnimatableSubscription` (`@semio/scene`, `@semio/vizij`)
+ *   — scene rendering hooks subscribe to dotKey entries.
+ * - `AnimatableControl`, `AnimatableEditor` (`@semio/animation`) — animation
+ *   editor controls subscribe to trackKey or dotKey entries.
+ * - `device-subscriptions.ts` (studio) — outbound device commands and
+ *   trajectories read dotKey entries.
  *
- * 1. `values-bridge-subscription.ts` — converts trackKey → dotKey during
- *    playback and writes both stores.
- * 2. `values-actions.ts` (`setValueDirectAction`) — direct user edits via
- *    animatable controls.
- * 3. `device-subscriptions.ts` (`onData` handler) — incoming device feedback.
+ * ## Writers
+ * - `setValueDirectAction` (studio) — direct user edits.
+ * - `device-subscriptions.ts` `onData` handler (studio) — incoming device
+ *   feedback writes feedback-namespace dotKeys.
+ * - `namespace-subscription.ts` (studio) — writes root-transform dotKeys for
+ *   target/feedback/sim instances when entity config changes.
+ * - `init-derived-orchestrator.ts` (`@semio/animation`) — writes trackKey
+ *   values during playback.
+ * - `values-bridge-subscription.ts` (studio) — writes converted trackKey →
+ *   dotKey entries.
  *
- * **trackKey-only writes do NOT need a dual-write** because the values-bridge
- * subscription automatically converts them to dotKeys.
+ * ## Gizmo writes (override seam)
+ * Scene primitives that write values back (e.g. joint gizmos) go through
+ * `SceneValueWriterContext` from `@semio/scene` — they call
+ * `useSceneValueWriter().setValue(id, namespace, value)` rather than touching
+ * this store directly. The default writer hits `updateValues` here. Studio
+ * overrides the writer to route through its animation-aware `setValueAction`,
+ * which produces a keypoint update or a direct write depending on the entity's
+ * controlMode and selected animation instance. See `packages/scene/README.md`.
  *
- * If you add a new code path that writes dotKey values, you must follow the
- * same dual-write pattern or scene rendering will not reflect the change.
+ * ## Lifecycle
+ * On project load, studio's `loadFromFullContext` calls `replaceAll(new Map(),
+ * new Map())` before applying the new project, so post-load subscribers
+ * (`namespace-subscription`, derived orchestrator) repopulate from a clean
+ * slate. Outside of load the store accumulates dotKey entries as namespaces
+ * and animatables are added; entries for removed animatables can become stale
+ * until cleared.
  */
 export const useValuesStore = create<ValuesStore>()(
   subscribeWithSelector((set) => ({

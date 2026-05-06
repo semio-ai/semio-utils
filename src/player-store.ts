@@ -98,7 +98,9 @@ export type PlayerStoreGetter = () => PlayerData & PlayerActions;
 export const PlayerSlice = (set: PlayerStoreSetter) => ({
   player: newPlayer(),
   // Set the duration of the player. Also updates bounds and viewport
-  // to reflect the new timeline extent in ms.
+  // to reflect the new timeline extent in ms. Uses `produce` (rather
+  // than the spread+`withX` pattern the other actions use) because the
+  // bounds/viewport rescaling is a multi-field atomic conditional write.
   updateDuration: (duration: number) => {
     set(
       produce((state: PlayerData) => {
@@ -189,6 +191,9 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
       player: withViewport(state.player, [start, end]),
     }));
   },
+  // TODO: rename — this calls `seek`, which resets `_previousTime` /
+  // `_currentTime` / `_bounced` and clamps `stamp` in addition to
+  // centering the viewport. Name implies viewport-only.
   updatePlayerViewportCenter: (time?: number) => {
     set((state: PlayerData) => ({
       player: seek(state.player, time ?? state.player.stamp),
