@@ -33,7 +33,6 @@ export enum PlayerDirection {
  * @property bounds - Constrains playback to a [start, end] range in milliseconds
  * @property bounce - Whether to reverse direction when reaching bounds
  * @property looping - Whether to continue playing after reaching bounds
- * @property viewport - Visible time range as [start, end] in milliseconds
  * @property duration - Total animation duration in milliseconds (used for playback stepping)
  */
 export interface Player {
@@ -49,7 +48,6 @@ export interface Player {
   bounds: [number, number];
   bounce: boolean;
   looping: boolean;
-  viewport: [number, number];
   duration: number;
 }
 
@@ -94,9 +92,6 @@ export function updated(player: Player, coldStart: boolean): Player {
   p._currentTime = t;
 
   const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
-  const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
-  // Threshold for "near center" in ms (10ms)
-  const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 10;
 
   // Check if player has entered the specified bounds
   if (currentInBounds && !p._enteredBounds) {
@@ -116,8 +111,6 @@ export function updated(player: Player, coldStart: boolean): Player {
   // Use full range [0, duration] as bounds when outside specified bounds and haven't entered them yet
   // Otherwise use the actual bounds
   const [start, end] = !p._enteredBounds && !currentInBounds ? [0, duration] : p.bounds;
-
-  let attachOverride = false;
 
   // Check if player is moving toward the bounded region
   const movingTowardBounds =
@@ -147,7 +140,6 @@ export function updated(player: Player, coldStart: boolean): Player {
         p.stamp = end;
         p.running = false;
       }
-      attachOverride = true;
     }
   } else if (updatedStamp < start) {
     if (movingTowardBounds) {
@@ -171,25 +163,10 @@ export function updated(player: Player, coldStart: boolean): Player {
         p.stamp = start;
         p.running = false;
       }
-      attachOverride = true;
     }
   } else {
     // Normal movement within or entering bounds
     p.stamp = updatedStamp;
-  }
-
-  const newNearViewportCenter = Math.abs(p.stamp - currentViewportCenter) < 10;
-
-  if (p.running && (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)) {
-    p.viewport = getFittedViewport(p.stamp, p.viewport);
-  } else if (p.running && !newNearViewportCenter) {
-    // Give the current stamp a bit of oomph with the delta to make it move towards the goal faster.
-    const oomphOffset = currentViewportCenter < p.stamp ? delta : 0;
-    const idealViewport = getFittedViewport(p.stamp + oomphOffset, p.viewport);
-    p.viewport = [
-      p.viewport[0] * 0.6 + idealViewport[0] * 0.4,
-      p.viewport[1] * 0.6 + idealViewport[1] * 0.4,
-    ];
   }
 
   return p;
@@ -204,18 +181,6 @@ export function updated(player: Player, coldStart: boolean): Player {
 export function withBounds(player: Player, bounds: [number, number]): Player {
   const p = { ...player };
   p.bounds = bounds;
-  return p;
-}
-
-/**
- * Sets the viewport for the player
- * @param player - the player to be updated
- * @param viewport - the new viewport in milliseconds [start, end]
- * @returns the updated player
- */
-export function withViewport(player: Player, viewport: [number, number]): Player {
-  const p = { ...player };
-  p.viewport = viewport;
   return p;
 }
 
@@ -287,15 +252,15 @@ export function pause(player: Player): Player {
 }
 
 /**
- * Returns the provided player, with the viewport centered around the provided stamp as much as possible.
+ * Returns the provided player, reset to the given stamp.
+ * Pure stamp-set; viewport-follow is handled separately by the
+ * viewport-follow subscription.
  * @param player - the player to be updated
- * @param stamp - the new stamp to center the viewport around
+ * @param stamp - the new stamp
  * @returns the updated player
  */
 export function seek(player: Player, stamp: number): Player {
-  const p = reset(player, stamp);
-  p.viewport = getFittedViewport(stamp, p.viewport);
-  return p;
+  return reset(player, stamp);
 }
 
 /**
@@ -321,7 +286,6 @@ export function withDuration(player: Player, duration: number): Player {
  * - Forward direction
  * - Default bounds [0, 5000] ms
  * - Looping enabled, bounce disabled
- * - Default viewport [0, 5000] ms
  * - 5000ms duration
  */
 export function newPlayer(): Player {
@@ -338,28 +302,9 @@ export function newPlayer(): Player {
     bounds: [0, 5000],
     bounce: false,
     looping: true,
-    viewport: [0, 5000],
     duration: 5000,
   };
 }
-
-/**
- * Adjusts the proposed viewport to keep it centered on the playhead.
- * In v2 format, the viewport is in ms and can extend freely in both
- * directions (negative ms is valid for pre-roll content).
- *
- * @param playhead - The current position in milliseconds.
- * @param proposedViewport - The proposed viewport as a tuple [start, end] in ms.
- * @returns A tuple representing the adjusted viewport [start, end].
- */
-const getFittedViewport = (
-  playhead: number,
-  proposedViewport: [number, number],
-): [number, number] => {
-  const viewportWidth = proposedViewport[1] - proposedViewport[0];
-  const proposedLeft = playhead - viewportWidth / 2;
-  return [proposedLeft, proposedLeft + viewportWidth];
-};
 
 /**
  * Sets the playback speed without affecting direction.
