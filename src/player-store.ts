@@ -102,17 +102,6 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
             state.player.bounds = [b[0], duration];
           }
         }
-        // Clamp the playhead into the (possibly updated) bounds. Without
-        // this, switching to a shorter animation (or removing instances
-        // until duration shrinks) leaves player.stamp at a value the new
-        // playable range can't reach. Consumers that read `player.stamp`
-        // at fire-time — most notably the "Add Keyframe" buttons in the
-        // tracklist (`use-control-menu.tsx`) — would then insert a
-        // keypoint past the new bounds, visually disconnected from the
-        // playhead the user actually sees on screen.
-        const [bStart, bEnd] = state.player.bounds;
-        if (state.player.stamp > bEnd) state.player.stamp = bEnd;
-        else if (state.player.stamp < bStart) state.player.stamp = bStart;
       }),
     );
   },
