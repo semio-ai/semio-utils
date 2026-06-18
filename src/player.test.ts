@@ -35,7 +35,6 @@ describe("Player", () => {
       expect(player.bounds).toEqual([0, 5000]);
       expect(player.bounce).toBe(false);
       expect(player.looping).toBe(true);
-      expect(player.viewport).toEqual([0, 5000]);
       expect(player.duration).toBe(5000);
     });
   });

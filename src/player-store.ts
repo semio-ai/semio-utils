@@ -1,11 +1,11 @@
 /**
  * @fileoverview
- * Experimental store for handling player state and actions.
- * Provides a centralized way to manage animation playback state.
+ * Store for handling player state and actions. Provides a centralized
+ * way to manage animation playback time, direction, bounds, and looping.
  *
- * @remarks
- * Not currently in use. Part of an attempt to improve performance
- * by separating rapidly-changing player data.
+ * Viewport state lives separately (see `viewport-state` in @semio/animation)
+ * so the player tick can advance time without fanning re-renders out to
+ * every viewport subscriber.
  */
 
 import { createContext } from "react";
@@ -20,9 +20,7 @@ import {
   play,
   pause,
   withBounds,
-  withViewport,
   updated,
-  seek,
   withSpeed,
   withDirection,
   reversed,
@@ -30,11 +28,6 @@ import {
   withLooping,
   PlayerDirection,
 } from "./player";
-
-/* This code is not currently used, but it is a first attempt to move the rapidly-changing
- * realtime data into a separate store to improve performance. Synchronizing this store with
- * the main store would have to be done to handle events like setting a value from a control.
- */
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
@@ -71,12 +64,6 @@ export interface PlayerActions {
   updatePlayerBounds: (start: number, end: number) => void;
   /** Updates one bound of the player */
   updatePlayerBound: (bound: "start" | "end", time?: number) => void;
-  /** Sets the player viewport */
-  updatePlayerViewport: (start: number, end: number) => void;
-  /** Seeks the viewport to center the player at a time */
-  updatePlayerViewportCenter: (time?: number) => void;
-  /** Updates one bound of the player viewport */
-  updatePlayerViewportBound: (bound: "start" | "end", time: number) => void;
   /** Update the player bounce setting */
   updateBounce: (bounce: boolean) => void;
   /** Update the player looping setting */
@@ -97,25 +84,22 @@ export type PlayerStoreGetter = () => PlayerData & PlayerActions;
 
 export const PlayerSlice = (set: PlayerStoreSetter) => ({
   player: newPlayer(),
-  // Set the duration of the player. Also updates bounds and viewport
-  // to reflect the new timeline extent in ms. Uses `produce` (rather
-  // than the spread+`withX` pattern the other actions use) because the
-  // bounds/viewport rescaling is a multi-field atomic conditional write.
+  // Set the duration of the player. Also rescales bounds if they were at
+  // the old default. Uses `produce` (rather than the spread+`withX` pattern
+  // the other actions use) because the bounds rescaling is a multi-field
+  // atomic conditional write. Viewport rescaling is handled separately by
+  // the viewport-follow subscription.
   updateDuration: (duration: number) => {
     set(
       produce((state: PlayerData) => {
         const oldDuration = state.player.duration;
         state.player.duration = duration;
-        // Scale bounds and viewport proportionally if they matched the old duration
+        // Scale bounds proportionally if they matched the old duration
         if (oldDuration > 0 && duration > 0) {
           const b = state.player.bounds;
           // Only rescale if bounds appear to be at the default [0, oldDuration]
           if (Math.abs(b[1] - oldDuration) < 1) {
             state.player.bounds = [b[0], duration];
-          }
-          const v = state.player.viewport;
-          if (Math.abs(v[1] - oldDuration) < 1) {
-            state.player.viewport = [v[0], duration];
           }
         }
       }),
@@ -181,41 +165,6 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
       } else {
         return {
           player: withBounds(state.player, [state.player.bounds[0], t]),
-        };
-      }
-    });
-  },
-  // Set the player viewport
-  updatePlayerViewport: (start: number, end: number) => {
-    set((state: PlayerData) => ({
-      player: withViewport(state.player, [start, end]),
-    }));
-  },
-  // TODO: rename — this calls `seek`, which resets `_previousTime` /
-  // `_currentTime` / `_bounced` and clamps `stamp` in addition to
-  // centering the viewport. Name implies viewport-only.
-  updatePlayerViewportCenter: (time?: number) => {
-    set((state: PlayerData) => ({
-      player: seek(state.player, time ?? state.player.stamp),
-    }));
-  },
-  updatePlayerViewportBound: (bound: "start" | "end", time: number) => {
-    set((state: PlayerData) => {
-      if (bound === "start" && state.player.viewport[1] <= time) {
-        return {
-          player: withViewport(state.player, [state.player.viewport[1], time]),
-        };
-      } else if (bound === "end" && state.player.viewport[0] >= time) {
-        return {
-          player: withViewport(state.player, [time, state.player.viewport[0]]),
-        };
-      } else if (bound === "start") {
-        return {
-          player: withViewport(state.player, [time, state.player.viewport[1]]),
-        };
-      } else {
-        return {
-          player: withViewport(state.player, [state.player.viewport[0], time]),
         };
       }
     });
