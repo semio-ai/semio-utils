@@ -109,12 +109,10 @@ export function mergeValueMaps(
  * controlMode and selected animation instance. See `packages/scene/README.md`.
  *
  * ## Lifecycle
- * On project load, studio's `loadFromFullContext` calls `replaceAll(new Map(),
- * new Map())` before applying the new project, so post-load subscribers
- * (`namespace-subscription`, derived orchestrator) repopulate from a clean
- * slate. Outside of load the store accumulates dotKey entries as namespaces
- * and animatables are added; entries for removed animatables can become stale
- * until cleared.
+ * Studio's project load leaves this singleton in place. Post-load subscribers
+ * (`namespace-subscription`, derived orchestrator) overwrite relevant entries,
+ * but entries for removed animatables can remain until their removal paths
+ * explicitly clear them or the application reloads.
  */
 export const useValuesStore = create<ValuesStore>()(
   subscribeWithSelector((set) => ({
