@@ -1,7 +1,10 @@
 import Color from "color";
 import { RawHSL, RawRGB } from "./animated-values";
 
-const regex = /(\d+),\s*(\d+),\s*(\d+)/;
+// Three comma-separated components of at most three digits each, not part of a
+// longer run of digits. Bounding the digits keeps a long digit string linear;
+// with `\d+` an unanchored match retried from every position is quadratic.
+const regex = /(?<!\d)(\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})(?!\d)/;
 
 /**
  * Converts a hexadecimal color value to an RGBA color string.
