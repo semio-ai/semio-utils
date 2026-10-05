@@ -118,18 +118,19 @@ export interface BoundEntity {
 }
 
 /**
- * Which of an entity's bound devices the main view follows: the instance whose
- * device the `target` instance shows the inputs of. The others render as
- * ghosts of their own feedback. `sim` by default, so the view follows the
- * emulated device; `feedback` makes it follow the robot instead, switching both
- * the inputs and the feedback the view displays without changing what the
- * store holds.
+ * Which of an entity's bound devices the `target` instance reads the inputs
+ * of: `sim` (the default) for the emulated device, `feedback` for the real
+ * one. It changes only the store keys of the `target` row; the `sim` and
+ * `feedback` instances always read their own device's feedback, and what the
+ * store holds is the same either way.
  *
  * A real device's inputs reach the store only through the World's mirror of
  * that device, which also carries the writes the World delivers to it. A World
- * that does not mirror real devices leaves a view following `feedback` with
- * nothing to read for the `target` instance, which keeps what direct writes
- * gave it.
+ * that does not mirror real devices leaves a `target` instance that reads
+ * `feedback` with nothing in the store, so it keeps what direct writes gave it.
+ *
+ * No production caller sets it yet: the scene's choice of the device the view
+ * follows lands with real devices (P3 of the Studio on Arora plan).
  */
 export type FollowedInstance = "sim" | "feedback";
 
@@ -184,7 +185,7 @@ export interface SceneBindingEntry {
   animatables: readonly AnimatableValue[];
   /** From the entity's `spawnEntity`; an animatable it does not name is bound to nothing. */
   keys: KeyTable;
-  /** The bound device the main view follows; `sim` when not given. */
+  /** Which bound device's inputs the `target` instance reads; `sim` when not given. */
   follows?: FollowedInstance;
 }
 
@@ -280,7 +281,7 @@ export class SceneBinding {
     return this.targetByDotKey.get(dotKey);
   }
 
-  /** Every store key something reads, for diagnostics and tests. */
+  /** Every store key something reads. */
   get storeKeys(): readonly string[] {
     return [...this.dotKeysByStoreKey.keys()];
   }
