@@ -98,6 +98,8 @@ export function mergeValueMaps(
  *   values during playback.
  * - `values-bridge-subscription.ts` (studio) — writes converted trackKey →
  *   dotKey entries.
+ * - `StudioAroraRuntime` (studio) — projects the shared Arora store's changes
+ *   onto dotKey entries once per frame, through `SceneBinding`.
  *
  * ## Gizmo writes (override seam)
  * Scene primitives that write values back (e.g. joint gizmos) go through
