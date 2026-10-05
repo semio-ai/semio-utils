@@ -76,9 +76,9 @@ export function mergeValueMaps(
  * - **dotKey** (`namespaceId.animatableId`) — used by scene rendering hooks
  *   and device command subscriptions.
  *
- * The values-bridge subscription (in `apps/studio`) converts trackKey entries
- * into dotKey entries during playback so downstream consumers don't need to
- * know about the animation layer.
+ * During playback the dotKeys follow the emulated devices, which play the
+ * animation (Studio's `StudioAroraRuntime` projects them), so downstream
+ * consumers don't need to know about the animation layer.
  *
  * ## Readers
  * - `useFeatures`, `useAnimatableSubscription` (`@semio/scene`, `@semio/vizij`)
@@ -96,8 +96,6 @@ export function mergeValueMaps(
  *   target/feedback/sim instances when entity config changes.
  * - `init-derived-orchestrator.ts` (`@semio/animation`) — writes trackKey
  *   values during playback.
- * - `values-bridge-subscription.ts` (studio) — writes converted trackKey →
- *   dotKey entries.
  * - `StudioAroraRuntime` (studio) — projects the shared Arora store's changes
  *   onto dotKey entries once per frame, through `SceneBinding`.
  *
