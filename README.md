@@ -15,14 +15,14 @@ Runtime peers you'll likely already have: `react`, `three`, `zustand`.
 
 ## What's inside
 
-| Area | Exports | Notes |
-| --- | --- | --- |
-| **Playback** | `usePlayerStore`, `Player`, and the pure transport functions `play` / `pause` / `seek` / `reset` | `usePlayerStore` holds transport state under `s.player` (`stamp`, `running`, `duration` — all in **milliseconds**). The pure functions operate on a `Player` value; `seek(player, stamp)` is a pure stamp-set. |
-| **Runtime values** | `useValuesStore`, `values-store` helpers | Single source of truth for the current value of every animatable. Read with the hook; write via `useValuesStore.getState().updateValues(map)`. |
-| **Math / geometry** | `euler`, `angles`, `hexagon`, `points-to-path`, `overlapping-segments`, `closest-frame`, `progress` | Pure functions, no React. |
-| **Color** | `colors` | Parsing, conversion, manipulation. |
-| **React helpers** | `useDeep`, `useMediaQuery`, context providers | |
-| **Misc** | `result`, `json`, `download`, `regex`, `time`, `lazy`, `pairwise`, `namespace`, `log` | |
+| Area                | Exports                                                                                                               | Notes                                                                                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Playback**        | `usePlayerStore`, `Player`, and the pure transport functions `play` / `pause` / `seek` / `reset`                      | `usePlayerStore` holds transport state under `s.player` (`stamp`, `running`, `duration` — all in **milliseconds**). The pure functions operate on a `Player` value; `seek(player, stamp)` is a pure stamp-set.                |
+| **Runtime values**  | `DataStore`, `DataStoreContext`, `useDataStore`, `watchKey`; `useValuesStore`, `createValuesStore`, `valuesDataStore` | The store port the scene, Vizij and animation packages read values through — Arora's data store interface (`read`, `slot`, `subscribe`), values as tagged arora `Value`s — and the values store that implements it in Studio. |
+| **Math / geometry** | `euler`, `angles`, `hexagon`, `points-to-path`, `overlapping-segments`, `closest-frame`, `progress`                   | Pure functions, no React.                                                                                                                                                                                                     |
+| **Color**           | `colors`                                                                                                              | Parsing, conversion, manipulation.                                                                                                                                                                                            |
+| **React helpers**   | `useDeep`, `useMediaQuery`, context providers                                                                         |                                                                                                                                                                                                                               |
+| **Misc**            | `result`, `json`, `download`, `regex`, `time`, `lazy`, `pairwise`, `namespace`, `log`                                 |                                                                                                                                                                                                                               |
 
 Everything is re-exported from the package root:
 
@@ -59,15 +59,28 @@ player = seek(player, 2500); // pure stamp-set, returns a new Player
 
 ### Runtime values
 
-```ts
-import { useValuesStore } from "@semio/utils";
+The packages read values through a `DataStore` the host injects. A host
+running on a values store of its own injects that store through the port:
 
-// Read in a component
-const value = useValuesStore((s) => s.values.get("my.animatable.id"));
+```tsx
+import { DataStoreContext, createValuesStore, valuesDataStore, watchKey } from "@semio/utils";
 
-// Write imperatively (e.g. from a gizmo drag) — updateValues takes a Map
-useValuesStore.getState().updateValues(new Map([["my.animatable.id", nextValue]]));
+const values = createValuesStore();
+const store = valuesDataStore(values);
+
+<DataStoreContext.Provider value={store}>
+  {/* a scene, a Vizij, a timeline */}
+</DataStoreContext.Provider>;
+
+// Write through the port: a key's cell, a tagged arora `Value`
+store.slot("my.animatable.id").set({ f64: 0.5 });
+
+// Watch a key as an animatable reads it: its scalar, or the fallback
+const stop = watchKey(store, "my.animatable.id", 0, (value) => console.log(value));
 ```
+
+`subscribe` starts each subscriber from the store's whole state, then hands it
+each change (`{ set, unset }`, arora's `StateChange`).
 
 ## License
 
