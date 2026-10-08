@@ -8,6 +8,7 @@ import {
   followedDeviceId,
   fromTaggedValue,
   inputKey,
+  namespaceEntity,
   parseKeyTable,
   storeKeyFor,
   toTaggedValue,
@@ -287,5 +288,12 @@ describe("tagged values", () => {
     for (const value of [0.25, "label", true] as const) {
       expect(fromTaggedValue(JSON.parse(JSON.stringify(toTaggedValue(value))))).toBe(value);
     }
+  });
+});
+
+describe("namespaceEntity", () => {
+  it("is the entity of the namespace entityNamespace spells, and a bare id's own", () => {
+    expect(namespaceEntity(entityNamespace("ent-1", "inst-2"))).toBe("ent-1");
+    expect(namespaceEntity("default")).toBe("default");
   });
 });
