@@ -117,14 +117,24 @@ export interface BoundInstances {
   target: { id: string };
   /** An emulated device bound to the entity; its id is the device's namespace. */
   sim?: { id: string };
-  /** A real device bound to the entity; its id is the device's namespace. */
+  /** The instance that shows the real device bound to the entity ({@link BoundEntity.realDeviceId}). */
   feedback?: { id: string };
 }
 
-/** The part of a project entity the binding reads: its id and its instances. */
+/**
+ * The part of a project entity the binding reads: its id, its instances, and
+ * the real device bound to it.
+ */
 export interface BoundEntity {
   id: string;
   instances: BoundInstances;
+  /**
+   * The id of the real device bound to the entity, its namespace in the store,
+   * which the `feedback` instance shows. A real device's id is its own (its
+   * uid), unlike an emulated device's, which is the id of the `sim` instance
+   * that shows it.
+   */
+  realDeviceId?: string;
 }
 
 /**
@@ -135,21 +145,32 @@ export interface BoundEntity {
  * store holds is the same either way.
  *
  * A real device's inputs reach the store only through the World's mirror of
- * that device, which also carries the writes the World delivers to it. A World
- * that does not mirror real devices leaves a `target` instance that reads
+ * that device, as the device publishes them once the World's writes reach it.
+ * An entity with no real device bound leaves a `target` instance that reads
  * `feedback` with nothing in the store, so it keeps what direct writes gave it.
  *
- * No production caller sets it yet: the scene's choice of the device the view
- * follows lands with real devices (P3 of the Studio on Arora plan).
+ * Studio offers no choice of it yet: every entity's view follows its emulated
+ * device.
  */
 export type FollowedInstance = "sim" | "feedback";
+
+/**
+ * The namespace of the device an instance of the entity shows: the `sim`
+ * instance's id for the emulated device, the real device's id for the
+ * `feedback` instance — `undefined` when the entity has no such instance or no
+ * real device is bound to it.
+ */
+function deviceIdOf(entity: BoundEntity, instance: FollowedInstance): string | undefined {
+  if (instance === "sim") return entity.instances.sim?.id;
+  return entity.instances.feedback ? entity.realDeviceId : undefined;
+}
 
 /** The device id the `target` instance reads under, or `undefined` when the entity has no such device. */
 export function followedDeviceId(
   entity: BoundEntity,
   follows: FollowedInstance = "sim",
 ): string | undefined {
-  return entity.instances[follows]?.id;
+  return deviceIdOf(entity, follows);
 }
 
 /**
@@ -162,7 +183,7 @@ export function followedDeviceId(
  * | --- | --- | --- |
  * | `target` | `<followed device id>/<key>.target_position` | the inputs of the device the view follows |
  * | `sim` | `<sim instance id>/<key>.position` | the emulated device's feedback |
- * | `feedback` | `<feedback instance id>/<key>.position` | the real device's feedback |
+ * | `feedback` | `<real device id>/<key>.position` | the real device's feedback |
  *
  * (`target_value` / `value` for a string or a boolean.) There is no entity
  * namespace: what Studio asked of an entity is the input each bound device
@@ -183,10 +204,10 @@ export function storeKeyFor(
     const deviceId = followedDeviceId(entity, follows);
     return deviceId === undefined ? undefined : `${deviceId}/${inputKey(key, type)}`;
   }
-  if (instanceId === sim?.id || instanceId === feedback?.id) {
-    return `${instanceId}/${feedbackKey(key, type)}`;
-  }
-  return undefined;
+  const shown =
+    instanceId === sim?.id ? "sim" : instanceId === feedback?.id ? "feedback" : undefined;
+  const deviceId = shown && deviceIdOf(entity, shown);
+  return deviceId === undefined ? undefined : `${deviceId}/${feedbackKey(key, type)}`;
 }
 
 /** A spawned entity: its instances, its model's animatables, and the World's key table for them. */

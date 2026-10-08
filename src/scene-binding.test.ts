@@ -40,9 +40,11 @@ const lit: AnimatableBoolean = {
 /** The key table the World answers for these three, by its rule. */
 const keys = { "anim-joint": "joint1", "anim-label": "label", "anim-lit": "anim-lit" };
 
+/** An entity with an emulated device and a real one, `device-1`, which its `feedback` instance shows. */
 const entity = {
   id: "ent",
-  instances: { target: { id: "target" }, sim: { id: "ent-sim" }, feedback: { id: "device-1" } },
+  instances: { target: { id: "target" }, sim: { id: "ent-sim" }, feedback: { id: "feedback" } },
+  realDeviceId: "device-1",
 };
 
 describe("input and feedback keys", () => {
@@ -88,6 +90,18 @@ describe("followedDeviceId", () => {
     expect(followedDeviceId(targetOnly)).toBeUndefined();
     expect(followedDeviceId(targetOnly, "feedback")).toBeUndefined();
   });
+
+  it("is nothing for the feedback instance while no real device is bound", () => {
+    const unbound = { id: "ent", instances: entity.instances };
+    expect(followedDeviceId(unbound, "feedback")).toBeUndefined();
+    expect(storeKeyFor(unbound, "feedback", "joint1", "number")).toBeUndefined();
+  });
+
+  it("is nothing for a real device no feedback instance shows", () => {
+    const shown = { id: "ent", instances: { target: { id: "target" } }, realDeviceId: "device-1" };
+    expect(followedDeviceId(shown, "feedback")).toBeUndefined();
+    expect(storeKeyFor(shown, "target", "joint1", "number", "feedback")).toBeUndefined();
+  });
 });
 
 describe("storeKeyFor", () => {
@@ -105,8 +119,10 @@ describe("storeKeyFor", () => {
 
   it("reads the feedback under the device for the sim and feedback instances", () => {
     expect(storeKeyFor(entity, "ent-sim", "joint1", "number")).toBe("ent-sim/joint1.position");
-    expect(storeKeyFor(entity, "device-1", "joint1", "number")).toBe("device-1/joint1.position");
-    expect(storeKeyFor(entity, "device-1", "label", "string")).toBe("device-1/label.value");
+    expect(storeKeyFor(entity, "feedback", "joint1", "number")).toBe("device-1/joint1.position");
+    expect(storeKeyFor(entity, "feedback", "label", "string")).toBe("device-1/label.value");
+    // The real device's id is its own, not the instance's.
+    expect(storeKeyFor(entity, "device-1", "joint1", "number")).toBeUndefined();
     // The followed device changes what `target` reads, not what a device instance reads.
     expect(storeKeyFor(entity, "ent-sim", "joint1", "number", "feedback")).toBe(
       "ent-sim/joint1.position",
@@ -140,10 +156,10 @@ describe("SceneBinding", () => {
   it("maps every store key of every instance to its dot key", () => {
     expect(binding.dotKeysFor("ent-sim/joint1.target_position")).toEqual(["ent@target.anim-joint"]);
     expect(binding.dotKeysFor("ent-sim/joint1.position")).toEqual(["ent@ent-sim.anim-joint"]);
-    expect(binding.dotKeysFor("device-1/joint1.position")).toEqual(["ent@device-1.anim-joint"]);
+    expect(binding.dotKeysFor("device-1/joint1.position")).toEqual(["ent@feedback.anim-joint"]);
     expect(binding.dotKeysFor("ent-sim/label.target_value")).toEqual(["ent@target.anim-label"]);
     expect(binding.dotKeysFor("ent-sim/label.value")).toEqual(["ent@ent-sim.anim-label"]);
-    expect(binding.dotKeysFor("device-1/anim-lit.value")).toEqual(["ent@device-1.anim-lit"]);
+    expect(binding.dotKeysFor("device-1/anim-lit.value")).toEqual(["ent@feedback.anim-lit"]);
     expect(binding.storeKeys).toHaveLength(9);
   });
 
@@ -156,7 +172,7 @@ describe("SceneBinding", () => {
     ]);
     expect(robotView.dotKeysFor("ent-sim/joint1.target_position")).toEqual([]);
     expect(robotView.dotKeysFor("ent-sim/joint1.position")).toEqual(["ent@ent-sim.anim-joint"]);
-    expect(robotView.dotKeysFor("device-1/joint1.position")).toEqual(["ent@device-1.anim-joint"]);
+    expect(robotView.dotKeysFor("device-1/joint1.position")).toEqual(["ent@feedback.anim-joint"]);
     // A write is still the entity's; only what undoes a refused one moves.
     expect(robotView.targetFor("ent@target.anim-joint")).toEqual({
       entityId: "ent",
@@ -214,7 +230,7 @@ describe("SceneBinding", () => {
 
   it("resolves no target for a device instance's dot key", () => {
     expect(binding.targetFor("ent@ent-sim.anim-joint")).toBeUndefined();
-    expect(binding.targetFor("ent@device-1.anim-joint")).toBeUndefined();
+    expect(binding.targetFor("ent@feedback.anim-joint")).toBeUndefined();
     expect(binding.targetFor("other@target.anim-joint")).toBeUndefined();
   });
 
@@ -226,7 +242,7 @@ describe("SceneBinding", () => {
           expect(target.storeKey).toBe(storeKey);
           expect(storeKey).toBe(`ent-sim/${target.key}`);
         } else {
-          expect(dotKey.startsWith("ent@ent-sim.") || dotKey.startsWith("ent@device-1.")).toBe(
+          expect(dotKey.startsWith("ent@ent-sim.") || dotKey.startsWith("ent@feedback.")).toBe(
             true,
           );
         }
@@ -237,15 +253,16 @@ describe("SceneBinding", () => {
   it("fans one device key out to every entity whose instance reads it", () => {
     const other = {
       id: "twin",
-      instances: { target: { id: "target" }, feedback: { id: "device-1" } },
+      instances: { target: { id: "target" }, feedback: { id: "feedback" } },
+      realDeviceId: "device-1",
     };
     const shared = new SceneBinding([
       { entity, animatables: [joint], keys },
       { entity: other, animatables: [joint], keys, follows: "feedback" },
     ]);
     expect(shared.dotKeysFor("device-1/joint1.position")).toEqual([
-      "ent@device-1.anim-joint",
-      "twin@device-1.anim-joint",
+      "ent@feedback.anim-joint",
+      "twin@feedback.anim-joint",
     ]);
     expect(shared.dotKeysFor("device-1/joint1.target_position")).toEqual([
       "twin@target.anim-joint",
