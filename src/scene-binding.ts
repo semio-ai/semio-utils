@@ -257,6 +257,17 @@ export interface TargetBinding {
  *
  * It is a value: rebuilt whenever the entities, the animatables or the key
  * tables change, never mutated.
+ *
+ * **The seam a view reads.** What a view needs from the binding is the list of
+ * store keys it shows ({@link storeKeys}) and, for each, the features that
+ * show it ({@link dotKeysFor}): strings, with no Studio type in them. Studio's
+ * types — the entity, its instances and their roles, the device a view
+ * follows, the animatables, the key table — build the binding and stay on
+ * Studio's side. The three.js scene reads those keys as the projection writes
+ * them into the values store, by dot key; a Bevy view linked into the World's
+ * wasm module reads the same store keys from the World's store in Rust, and
+ * the projection is what retires. A write goes the other way, through
+ * {@link targetFor}, to the entity the World routes it from.
  */
 export class SceneBinding {
   /** A binding with nothing bound: every lookup answers "unbound". */

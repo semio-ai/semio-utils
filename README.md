@@ -83,6 +83,22 @@ const stop = watchKey(store, "my.animatable.id", 0, (value) => console.log(value
 `subscribe` starts each subscriber from the store's whole state, then hands it
 each change (`{ set, unset }`, arora's `StateChange`).
 
+### Scene binding
+
+A `SceneBinding` is built from Studio's entities, their instances, the device
+each view follows and the World's key table, and a view reads two things from
+it, both plain strings: the store keys it shows (`storeKeys`), and the dot keys
+of the features each one feeds (`dotKeysFor`). That list is the seam a Bevy
+view takes: it reads the same store keys from the World's store in Rust, where
+the three.js scene reads their projection into the values store.
+
+```ts
+for (const storeKey of binding.storeKeys) {
+  // "sim/joint1.position" → ["ent@sim.anim-joint"]
+  const features = binding.dotKeysFor(storeKey);
+}
+```
+
 ## License
 
 MIT
