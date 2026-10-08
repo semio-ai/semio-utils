@@ -49,7 +49,7 @@ export interface DataStore {
   subscribe(listener: (change: StateChange) => void): () => void;
 }
 
-/** The store the scene and Vizij packages read values from. */
+/** The store the scene, Vizij and animation packages read values from. */
 export const DataStoreContext = createContext<DataStore | null>(null);
 
 /** The store the host injected; throws when no {@link DataStoreContext} provides one. */

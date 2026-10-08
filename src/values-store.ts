@@ -13,7 +13,7 @@ export interface ValuesActions {
   updateValues: (values: Map<string, RawValue | undefined>) => void;
   updateVelocities: (velocities: Map<string, RawValue | undefined>) => void;
   setTrackValue: (trackKey: string, value: RawValue) => void;
-  /** Replace both maps at once (used by derived orchestrator). */
+  /** Replace both maps at once. */
   replaceAll: (
     values: Map<string, RawValue | undefined>,
     velocities: Map<string, RawValue | undefined>,
@@ -64,19 +64,16 @@ export function mergeValueMaps(
  * world, namespaces); this store owns *current numeric state*.
  *
  * ## Why a separate store
- * During playback the derived orchestrator writes new interpolated values at
- * ~40 Hz. A dedicated store with `subscribeWithSelector` means only the
+ * During playback the Arora projection writes the devices' values every
+ * frame. A dedicated store with `subscribeWithSelector` means only the
  * consumers that need per-tick updates re-evaluate; subscribers of the other
  * stores aren't woken on every tick. `mergeValueMaps` additionally returns
  * the same Map reference when no values changed, so redundant writes don't
  * fan out to subscribers.
  *
- * ## Key formats
- * Two key formats coexist in the maps:
- * - **trackKey** (`namespaceId/instanceId/trackId`) — written by the derived
- *   orchestrator during playback. Only meaningful to the animation system.
- * - **dotKey** (`namespaceId.animatableId`) — used by scene rendering hooks
- *   and device command subscriptions.
+ * ## Key format
+ * **dotKey** (`namespaceId.animatableId`) — used by scene rendering hooks,
+ * the animation editor's direct controls and device command subscriptions.
  *
  * During playback the dotKeys follow the emulated devices, which play the
  * animation (Studio's `StudioAroraRuntime` projects them), so downstream
@@ -87,8 +84,8 @@ export function mergeValueMaps(
  *   scene rendering hooks subscribe to dotKey entries through the
  *   {@link DataStore} port, which Studio implements over this store
  *   ({@link valuesDataStore}).
- * - `AnimatableControl`, `AnimatableEditor` (`@semio/animation`) — animation
- *   editor controls subscribe to trackKey or dotKey entries.
+ * - `AnimatableControl` (`@semio/animation`) — a direct control watches its
+ *   dotKey entry through the same port.
  * - `device-subscriptions.ts` (studio) — outbound device commands and
  *   trajectories read dotKey entries.
  *
@@ -98,8 +95,6 @@ export function mergeValueMaps(
  *   feedback writes feedback-namespace dotKeys.
  * - `namespace-subscription.ts` (studio) — writes root-transform dotKeys for
  *   target/feedback/sim instances when entity config changes.
- * - `init-derived-orchestrator.ts` (`@semio/animation`) — writes trackKey
- *   values during playback.
  * - `StudioAroraRuntime` (studio) — projects the shared Arora store's changes
  *   onto dotKey entries once per frame, through `SceneBinding`.
  *
@@ -115,7 +110,7 @@ export function mergeValueMaps(
  *
  * ## Lifecycle
  * Studio's project load leaves this singleton in place. Post-load subscribers
- * (`namespace-subscription`, derived orchestrator) overwrite relevant entries,
+ * (`namespace-subscription`, the Arora projection) overwrite relevant entries,
  * but entries for removed animatables can remain until their removal paths
  * explicitly clear them or the application reloads.
  */
@@ -163,7 +158,7 @@ type ValuesStoreApi = ReturnType<typeof createValuesStore>;
 
 /**
  * A values store seen through the {@link DataStore} port, which is how the
- * scene and Vizij packages read it: its keys as they are, each scalar as its
+ * scene, Vizij and animation packages read it: its keys as they are, each scalar as its
  * tagged arora `Value`. Studio injects the one over {@link useValuesStore}; a
  * story injects one over a store of its own.
  *

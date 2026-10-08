@@ -172,11 +172,17 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
   },
 });
 
-export const usePlayerStore = create<PlayerData & PlayerActions>()(
-  subscribeWithSelector(PlayerSlice),
-);
+export const usePlayerStore = createPlayerStore();
 
-export type PlayerStore = typeof usePlayerStore;
+/**
+ * A player of its own, shaped like {@link usePlayerStore}: for a timeline whose
+ * host has no player to share with it (a story, a standalone sheet).
+ */
+export function createPlayerStore() {
+  return create<PlayerData & PlayerActions>()(subscribeWithSelector(PlayerSlice));
+}
+
+export type PlayerStore = ReturnType<typeof createPlayerStore>;
 
 // This creates a context where the single app store is stored.
 export const PlayerContext = createContext<PlayerStore | null>(null);

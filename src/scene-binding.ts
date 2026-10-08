@@ -101,6 +101,16 @@ export function entityNamespace(entityId: string, instanceId: string): string {
   return `${entityId}@${instanceId}`;
 }
 
+/**
+ * The entity a scene instance's namespace belongs to, the inverse of
+ * {@link entityNamespace}. A namespace that names no instance is the
+ * entity's own id.
+ */
+export function namespaceEntity(namespace: string): string {
+  const at = namespace.indexOf("@");
+  return at === -1 ? namespace : namespace.slice(0, at);
+}
+
 /** An entity's instances, by the field that names each one's role. */
 export interface BoundInstances {
   /** The instance that shows the inputs of the device the view follows. */
