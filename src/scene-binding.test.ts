@@ -95,6 +95,12 @@ describe("followedDeviceId", () => {
     expect(followedDeviceId(unbound, "feedback")).toBeUndefined();
     expect(storeKeyFor(unbound, "feedback", "joint1", "number")).toBeUndefined();
   });
+
+  it("is nothing for a real device no feedback instance shows", () => {
+    const shown = { id: "ent", instances: { target: { id: "target" } }, realDeviceId: "device-1" };
+    expect(followedDeviceId(shown, "feedback")).toBeUndefined();
+    expect(storeKeyFor(shown, "target", "joint1", "number", "feedback")).toBeUndefined();
+  });
 });
 
 describe("storeKeyFor", () => {
