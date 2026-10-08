@@ -49,7 +49,7 @@ export interface DataStore {
   subscribe(listener: (change: StateChange) => void): () => void;
 }
 
-/** The store the scene, Vizij and animation packages read values from. */
+/** The store the scene and Vizij packages read values from. */
 export const DataStoreContext = createContext<DataStore | null>(null);
 
 /** The store the host injected; throws when no {@link DataStoreContext} provides one. */
@@ -79,7 +79,7 @@ export function watchKey(
     if (change.set.has(key)) next = fromTaggedValue(change.set.get(key)) ?? fallback;
     else if (change.unset.has(key)) next = fallback;
     else return;
-    if (next === current) return;
+    if (Object.is(next, current)) return;
     current = next;
     onValue(next);
   });

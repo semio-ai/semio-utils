@@ -163,22 +163,29 @@ type ValuesStoreApi = ReturnType<typeof createValuesStore>;
 
 /**
  * A values store seen through the {@link DataStore} port, which is how the
- * scene, Vizij and animation packages read it: its keys as they are, each
- * scalar as its tagged arora `Value`. Studio injects the one over
- * {@link useValuesStore}; a story injects one over a store of its own.
+ * scene and Vizij packages read it: its keys as they are, each scalar as its
+ * tagged arora `Value`. Studio injects the one over {@link useValuesStore}; a
+ * story injects one over a store of its own.
  *
- * The values store holds scalars: composite values are flattened to one key
- * per axis before they reach it. A key holding anything else reads as absent,
- * and writing anything but a scalar throws.
+ * An animatable's value is a scalar. A key holding anything else (a composite
+ * some writer still puts in the values store) reads as absent, and writing
+ * anything but a scalar throws.
  *
  * One subscription to the values store serves every subscriber of the port,
  * and each change is computed once and handed to all of them; so is the
  * whole-state change a new subscriber starts from, until the values move.
+ * Changes reach every subscriber in the order they were applied: a write a
+ * subscriber makes while handling a change is handed on once that change has
+ * reached every subscriber, and a subscriber that leaves during a change is
+ * not called again.
  */
 export function valuesDataStore(store: ValuesStoreApi): DataStore {
   const listeners = new Set<(change: StateChange) => void>();
   let stopWatching: (() => void) | undefined;
   let whole: { values: ValuesData["values"]; change: StateChange } | undefined;
+  /** The values every subscriber has been handed. */
+  let delivered: ValuesData["values"] = store.getState().values;
+  let handing = false;
 
   const tagged = (value: RawValue | undefined): AroraValue | undefined =>
     isScalar(value) ? toTaggedValue(value) : undefined;
@@ -196,13 +203,30 @@ export function valuesDataStore(store: ValuesStoreApi): DataStore {
     return whole.change;
   };
 
-  const watch = () =>
-    store.subscribe((state, previous) => {
-      if (state.values === previous.values) return;
-      const change = difference(previous.values, state.values, tagged);
-      if (change.set.size === 0 && change.unset.size === 0) return;
-      for (const listener of [...listeners]) listener(change);
-    });
+  /** Hands every subscriber what moved since `delivered`, until nothing has. */
+  const handOn = () => {
+    if (handing) return;
+    handing = true;
+    try {
+      for (;;) {
+        const { values } = store.getState();
+        if (values === delivered) return;
+        const change = difference(delivered, values, tagged);
+        delivered = values;
+        if (change.set.size === 0 && change.unset.size === 0) continue;
+        for (const listener of [...listeners]) {
+          if (listeners.has(listener)) listener(change);
+        }
+      }
+    } finally {
+      handing = false;
+    }
+  };
+
+  const watch = () => {
+    delivered = store.getState().values;
+    return store.subscribe(handOn);
+  };
 
   return {
     read: (keys) => {
@@ -223,9 +247,10 @@ export function valuesDataStore(store: ValuesStoreApi): DataStore {
       },
     }),
     subscribe: (listener) => {
-      listener(wholeState());
-      listeners.add(listener);
       stopWatching ??= watch();
+      // Registered before its first call, so a write it makes there reaches it.
+      listeners.add(listener);
+      listener(wholeState());
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {
@@ -241,7 +266,11 @@ function isScalar(value: RawValue | undefined): value is ScalarValue {
   return typeof value === "number" || typeof value === "string" || typeof value === "boolean";
 }
 
-/** What turned `before` into `after`: the keys whose value changed or appeared, and the keys gone. */
+/**
+ * What turned `before` into `after`, as subscribers read it: the keys whose
+ * scalar changed or appeared, and the keys whose scalar is gone (removed, or
+ * replaced by something that is no scalar).
+ */
 function difference(
   before: ValuesData["values"],
   after: ValuesData["values"],
@@ -249,14 +278,15 @@ function difference(
 ): StateChange {
   const set = new Map<string, AroraValue>();
   const unset = new Set<string>();
+  const hadScalar = (key: string) => tagged(before.get(key)) !== undefined;
   after.forEach((value, key) => {
-    if (before.has(key) && before.get(key) === value) return;
+    if (before.has(key) && Object.is(before.get(key), value)) return;
     const t = tagged(value);
-    if (t === undefined) unset.add(key);
-    else set.set(key, t);
+    if (t !== undefined) set.set(key, t);
+    else if (hadScalar(key)) unset.add(key);
   });
   before.forEach((_, key) => {
-    if (!after.has(key)) unset.add(key);
+    if (!after.has(key) && hadScalar(key)) unset.add(key);
   });
   return { set, unset };
 }

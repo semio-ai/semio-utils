@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RawValue } from "./animated-values";
 import { watchKey, type StateChange } from "./data-store";
 import { createValuesStore, valuesDataStore } from "./values-store";
@@ -95,6 +95,101 @@ describe("valuesDataStore", () => {
     expect(plain(third[0])).toEqual({ set: { "a.x": { f64: 3 } }, unset: [] });
   });
 
+  it("stops watching the values store when the last subscriber leaves, and starts again for the next", () => {
+    const { values, store } = setUp([["a.x", 0]]);
+    const unsubscribes: ReturnType<typeof vi.fn>[] = [];
+    const subscribe = values.subscribe.bind(values) as (...args: unknown[]) => () => void;
+    vi.spyOn(values, "subscribe").mockImplementation(((...args: unknown[]) => {
+      const unsubscribe = vi.fn(subscribe(...args));
+      unsubscribes.push(unsubscribe);
+      return unsubscribe;
+    }) as typeof values.subscribe);
+
+    const stopFirst = store.subscribe(() => {});
+    const stopSecond = store.subscribe(() => {});
+    expect(unsubscribes).toHaveLength(1);
+    stopFirst();
+    expect(unsubscribes[0]).not.toHaveBeenCalled();
+    stopSecond();
+    expect(unsubscribes[0]).toHaveBeenCalledOnce();
+
+    const later: StateChange[] = [];
+    store.subscribe((change) => later.push(change));
+    write(values, "a.x", 1);
+    expect(later.map(plain)).toEqual([
+      { set: { "a.x": { f64: 0 } }, unset: [] },
+      { set: { "a.x": { f64: 1 } }, unset: [] },
+    ]);
+  });
+
+  it("hands a write made while handling a change to every subscriber after that change", () => {
+    const { values, store } = setUp([["a.x", 0]]);
+    const first: unknown[] = [];
+    const second: unknown[] = [];
+    watchKey(store, "a.x", 0, (value) => {
+      first.push(value);
+      if (value === 1) write(values, "a.x", 2);
+    });
+    watchKey(store, "a.x", 0, (value) => second.push(value));
+
+    write(values, "a.x", 1);
+
+    expect(first).toEqual([0, 1, 2]);
+    expect(second).toEqual([0, 1, 2]);
+  });
+
+  it("hands a subscriber the write it makes in its first call", () => {
+    const { values, store } = setUp();
+    const changes: StateChange[] = [];
+    store.subscribe((change) => {
+      changes.push(change);
+      if (changes.length === 1) write(values, "a.k", true);
+    });
+    expect(changes.map(plain)).toEqual([
+      { set: {}, unset: [] },
+      { set: { "a.k": { bool: true } }, unset: [] },
+    ]);
+  });
+
+  it("does not call a subscriber that left while a change was being handed on", () => {
+    const { values, store } = setUp();
+    let calls = 0;
+    let stopSecond = () => {};
+    store.subscribe(() => stopSecond());
+    stopSecond = store.subscribe(() => calls++);
+    calls = 0;
+
+    write(values, "a.x", 1);
+
+    expect(calls).toBe(0);
+  });
+
+  it("does not report again a key that holds NaN, nor a write that changes nothing", () => {
+    const { values, store } = setUp([["a.n", Number.NaN]]);
+    const changes: StateChange[] = [];
+    store.subscribe((change) => changes.push(change));
+    changes.length = 0;
+
+    write(values, "a.other", 1);
+    // `setTrackValue` makes a new map even when the value is the same.
+    values.getState().setTrackValue("a.other", 1);
+
+    expect(changes.map(plain)).toEqual([{ set: { "a.other": { f64: 1 } }, unset: [] }]);
+  });
+
+  it("reports as removed only a key that held a scalar", () => {
+    const { values, store } = setUp([["a.s", 1]]);
+    const changes: StateChange[] = [];
+    store.subscribe((change) => changes.push(change));
+    changes.length = 0;
+
+    write(values, "a.v", { x: 1, y: 2 });
+    write(values, "a.v", undefined);
+    write(values, "a.s", undefined);
+
+    expect(changes.map(plain)).toEqual([{ set: {}, unset: ["a.s"] }]);
+  });
+
   it("reads several keys at once, an absent one as undefined", () => {
     const { store } = setUp([
       ["a.x", 0.5],
@@ -149,6 +244,14 @@ describe("watchKey", () => {
     stop();
     write(values, "a.x", 2);
     expect(seen).toEqual([0.5, 0.75, 0, 1]);
+  });
+
+  it("goes back to the fallback when the key is removed", () => {
+    const { values, store } = setUp([["a.x", 0.5]]);
+    const seen: unknown[] = [];
+    watchKey(store, "a.x", 0, (value) => seen.push(value));
+    write(values, "a.x", undefined);
+    expect(seen).toEqual([0.5, 0]);
   });
 
   it("starts from the fallback for an absent key", () => {
