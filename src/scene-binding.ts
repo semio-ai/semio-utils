@@ -75,22 +75,21 @@ export function parseKeyTable(json: string): KeyTable | undefined {
  * animatable id, as the World's `inputKeys` answers it. For an entity, the key
  * its writes address; for a device bound to one, the key the entity's input
  * lands on there — `<key>/target.<c>`, `<key>.target_<c>` or the bare `<key>`,
- * which the World resolves per device from what the device lists — so nothing
- * on this side spells an input. An animatable it does not name takes no write
- * (an entity) or is not driven (a device).
+ * an axis spelled from its group's key with the axis after the component in
+ * the first form, which the World resolves per device from what the device
+ * lists — so nothing on this side spells an input. An animatable it does not
+ * name takes no write (an entity) or is not driven (a device).
  */
 export type InputKeys = Readonly<Record<string, string>>;
 
 /**
- * The key, relative to a device's namespace, that holds what the device did
- * with an animatable named `key`, whatever form its input takes:
- * `<key>.position` for a number, `<key>.value` otherwise — the component `c`
- * of its input. An emulated device's HAL mirrors its input onto it for every
- * type.
+ * The feedback key of each animatable, relative to a device's namespace, by
+ * animatable id, as the World's `feedbackKeys` answers it for a device: what
+ * the device did with it, `<key>.position` for a number and `<key>.value`
+ * otherwise, an axis read under whichever spelling the device publishes
+ * (`<group key>.position.<axis>` or `<group key>.<axis>.position`).
  */
-export function feedbackKey(key: string, type: AnimatableValue["type"]): string {
-  return `${key}.${type === "number" ? "position" : "value"}`;
-}
+export type FeedbackKeys = Readonly<Record<string, string>>;
 
 /**
  * The namespace a scene instance of an entity reads under: `entityId@instanceId`.
@@ -172,11 +171,11 @@ export function followedDeviceId(
   return deviceIdOf(entity, follows);
 }
 
-/** The keys, relative to a device's namespace, one animatable is read from. */
+/** The keys, relative to a device's namespace, one animatable is read from on each device bound to its entity, by device id. */
 export interface AnimatableKeys {
-  /** Its feedback key ({@link feedbackKey}), the same under every device. */
-  feedback: string;
-  /** Its input key on each device bound to the entity, by device id; none on a device that does not drive it. */
+  /** Its feedback key on each device; none before the World knows it (a real device not yet paired). */
+  feedback: Readonly<Record<string, string | undefined>>;
+  /** Its input key on each device; none on a device that does not drive it. */
   inputs: Readonly<Record<string, string | undefined>>;
 }
 
@@ -189,10 +188,10 @@ export interface AnimatableKeys {
  * | Instance | Store key | Plane |
  * | --- | --- | --- |
  * | `target` | `<followed device id>/<its input key there>` | the inputs of the device the view follows |
- * | `sim` | `<sim instance id>/<key>.position` | the emulated device's feedback |
- * | `feedback` | `<real device id>/<key>.position` | the real device's feedback |
+ * | `sim` | `<sim instance id>/<its feedback key there>` | the emulated device's feedback |
+ * | `feedback` | `<real device id>/<its feedback key there>` | the real device's feedback |
  *
- * (`value` for a string or a boolean.) There is no entity namespace: what
+ * There is no entity namespace: what
  * Studio asked of an entity is the input each bound device received, under
  * that device, in the form that device takes it. An emulated and a real device
  * bound to one entity are two devices in the store, so the two device rows
@@ -214,7 +213,8 @@ export function storeKeyFor(
   const shown =
     instanceId === sim?.id ? "sim" : instanceId === feedback?.id ? "feedback" : undefined;
   const deviceId = shown && deviceIdOf(entity, shown);
-  return deviceId === undefined ? undefined : `${deviceId}/${keys.feedback}`;
+  const read = deviceId === undefined ? undefined : keys.feedback[deviceId];
+  return read === undefined ? undefined : `${deviceId}/${read}`;
 }
 
 /** A spawned entity: its instances, its model's animatables, and the World's key tables for them. */
@@ -230,6 +230,11 @@ export interface SceneBindingEntry {
    * what the `target` instance reads under the device it follows.
    */
   deviceInputs: Readonly<Record<string, InputKeys>>;
+  /**
+   * The World's `feedbackKeys` of each device bound to the entity, by device
+   * id: what the `sim` and `feedback` instances read under their device.
+   */
+  deviceFeedback: Readonly<Record<string, FeedbackKeys>>;
   /** Which bound device's inputs the `target` instance reads; `sim` when not given. */
   follows?: FollowedInstance;
 }
@@ -292,7 +297,13 @@ export class SceneBinding {
   private readonly targetByDotKey = new Map<string, TargetBinding>();
 
   constructor(entries: Iterable<SceneBindingEntry>) {
-    for (const { entity, animatables, keys, inputs, deviceInputs, follows = "sim" } of entries) {
+    for (const entry of entries) {
+      const { entity, animatables, keys, inputs, deviceInputs, deviceFeedback } = entry;
+      const follows = entry.follows ?? "sim";
+      const onDevices = (tables: Readonly<Record<string, KeyTable>>, id: string) =>
+        Object.fromEntries(
+          Object.entries(tables).map(([deviceId, table]) => [deviceId, table[id]]),
+        );
       const instances = [entity.instances.target, entity.instances.sim, entity.instances.feedback];
       for (const instance of instances) {
         if (!instance) continue;
@@ -302,13 +313,8 @@ export class SceneBinding {
           if (key === undefined) continue;
           const dotKey = getLookup(namespace, animatable.id);
           const animatableKeys: AnimatableKeys = {
-            feedback: feedbackKey(key, animatable.type),
-            inputs: Object.fromEntries(
-              Object.entries(deviceInputs).map(([deviceId, table]) => [
-                deviceId,
-                table[animatable.id],
-              ]),
-            ),
+            feedback: onDevices(deviceFeedback, animatable.id),
+            inputs: onDevices(deviceInputs, animatable.id),
           };
           const storeKey = storeKeyFor(entity, instance.id, animatableKeys, follows);
           const input = inputs[animatable.id];

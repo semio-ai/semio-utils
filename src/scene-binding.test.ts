@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { AnimatableBoolean, AnimatableNumber, AnimatableString } from "./animated-values";
+import {
+  AnimatableGroupType,
+  type AnimatableBoolean,
+  type AnimatableNumber,
+  type AnimatableString,
+} from "./animated-values";
 import { getLookup } from "./namespace";
 import {
   SceneBinding,
   entityNamespace,
-  feedbackKey,
   followedDeviceId,
   fromTaggedValue,
   namespaceEntity,
@@ -56,9 +60,17 @@ const deviceInputs = {
   "device-1": { "anim-joint": "joint1/target.position", "anim-label": "label/target.value" },
 };
 
+/** The World's `feedbackKeys` of the entity's two devices. */
+const feedback = {
+  "anim-joint": "joint1.position",
+  "anim-label": "label.value",
+  "anim-lit": "anim-lit.value",
+};
+const deviceFeedback = { "ent-sim": feedback, "device-1": feedback };
+
 /** The joint's keys as the binding hands them to `storeKeyFor`. */
 const jointKeys = {
-  feedback: "joint1.position",
+  feedback: { "ent-sim": "joint1.position", "device-1": "joint1.position" },
   inputs: { "ent-sim": "joint1.target_position", "device-1": "joint1/target.position" },
 };
 
@@ -68,14 +80,6 @@ const entity = {
   instances: { target: { id: "target" }, sim: { id: "ent-sim" }, feedback: { id: "feedback" } },
   realDeviceId: "device-1",
 };
-
-describe("feedback keys", () => {
-  it("spell a number's as its position and a string's or a boolean's as its value", () => {
-    expect(feedbackKey("joint1", "number")).toBe("joint1.position");
-    expect(feedbackKey("label", "string")).toBe("label.value");
-    expect(feedbackKey("anim-lit", "boolean")).toBe("anim-lit.value");
-  });
-});
 
 describe("parseKeyTable", () => {
   it("reads an object of names by animatable id", () => {
@@ -129,7 +133,10 @@ describe("storeKeyFor", () => {
   });
 
   it("reads nothing for the target instance when the followed device does not drive the animatable", () => {
-    const undriven = { feedback: "anim-lit.value", inputs: { "ent-sim": "anim-lit.target_value" } };
+    const undriven = {
+      feedback: { "ent-sim": "anim-lit.value", "device-1": "anim-lit.value" },
+      inputs: { "ent-sim": "anim-lit.target_value" },
+    };
     expect(storeKeyFor(entity, "target", undriven)).toBe("ent-sim/anim-lit.target_value");
     expect(storeKeyFor(entity, "target", undriven, "feedback")).toBeUndefined();
     // Its feedback is still read: what the device does with it is the device's.
@@ -161,7 +168,7 @@ describe("storeKeyFor", () => {
 
 describe("SceneBinding", () => {
   const binding = new SceneBinding([
-    { entity, animatables: [joint, label, lit], keys, inputs, deviceInputs },
+    { entity, animatables: [joint, label, lit], keys, inputs, deviceInputs, deviceFeedback },
   ]);
 
   it("keeps the dot key the scene subscribes to", () => {
@@ -183,7 +190,15 @@ describe("SceneBinding", () => {
 
   it("reads the robot's inputs for the target instance when the view follows the feedback device", () => {
     const robotView = new SceneBinding([
-      { entity, animatables: [joint, lit], keys, inputs, deviceInputs, follows: "feedback" },
+      {
+        entity,
+        animatables: [joint, lit],
+        keys,
+        inputs,
+        deviceInputs,
+        deviceFeedback,
+        follows: "feedback",
+      },
     ]);
     expect(robotView.dotKeysFor("device-1/joint1/target.position")).toEqual([
       "ent@target.anim-joint",
@@ -216,12 +231,21 @@ describe("SceneBinding", () => {
         keys,
         inputs,
         deviceInputs: { "ent-sim": inputs },
+        deviceFeedback: { "ent-sim": feedback },
         follows: "feedback",
       },
     ]);
     expect(unpaired.targetFor("ent@target.anim-joint")?.storeKey).toBeUndefined();
     const paired = new SceneBinding([
-      { entity, animatables: [joint], keys, inputs, deviceInputs, follows: "feedback" },
+      {
+        entity,
+        animatables: [joint],
+        keys,
+        inputs,
+        deviceInputs,
+        deviceFeedback,
+        follows: "feedback",
+      },
     ]);
     expect(paired.targetFor("ent@target.anim-joint")?.storeKey).toBe(
       "device-1/joint1/target.position",
@@ -231,7 +255,7 @@ describe("SceneBinding", () => {
   it("feeds a target instance with no followed device by direct writes only", () => {
     const unbound = { id: "ent", instances: { target: { id: "target" } } };
     const direct = new SceneBinding([
-      { entity: unbound, animatables: [joint], keys, inputs, deviceInputs: {} },
+      { entity: unbound, animatables: [joint], keys, inputs, deviceInputs: {}, deviceFeedback: {} },
     ]);
     expect(direct.storeKeys).toEqual([]);
     const target = direct.targetFor("ent@target.anim-joint");
@@ -248,6 +272,7 @@ describe("SceneBinding", () => {
         keys: { "anim-joint": "anim-joint" },
         inputs: renamedInputs,
         deviceInputs: { "ent-sim": renamedInputs },
+        deviceFeedback: { "ent-sim": { "anim-joint": "anim-joint.position" } },
       },
     ]);
     expect(renamed.dotKeysFor("ent-sim/anim-joint.target_position")).toEqual([
@@ -260,11 +285,64 @@ describe("SceneBinding", () => {
 
   it("binds nothing for an animatable the key table does not name", () => {
     const partial = new SceneBinding([
-      { entity, animatables: [joint, lit], keys: { "anim-joint": "joint1" }, inputs, deviceInputs },
+      {
+        entity,
+        animatables: [joint, lit],
+        keys: { "anim-joint": "joint1" },
+        inputs,
+        deviceInputs,
+        deviceFeedback,
+      },
     ]);
     expect(partial.storeKeys).toHaveLength(3);
     expect(partial.dotKeysFor("ent-sim/anim-lit.target_value")).toEqual([]);
     expect(partial.targetFor("ent@target.anim-lit")).toBeUndefined();
+  });
+
+  it("reads an axis's feedback under the spelling each device publishes", () => {
+    const eyeX: AnimatableNumber = {
+      id: "eye.x",
+      type: "number",
+      default: 0,
+      constraints: {},
+      pub: { public: true, output: "eye.x" },
+      group: { id: "g", type: AnimatableGroupType.Vector3, axis: "x" },
+    };
+    const eye = new SceneBinding([
+      {
+        entity,
+        animatables: [eyeX],
+        keys: { "eye.x": "eye.x" },
+        inputs: { "eye.x": "eye.x.target_position" },
+        deviceInputs: {
+          "ent-sim": { "eye.x": "eye.x.target_position" },
+          "device-1": { "eye.x": "eye/target.position.x" },
+        },
+        deviceFeedback: {
+          "ent-sim": { "eye.x": "eye.x.position" },
+          "device-1": { "eye.x": "eye.position.x" },
+        },
+        follows: "feedback",
+      },
+    ]);
+    expect(eye.dotKeysFor("ent-sim/eye.x.position")).toEqual(["ent@ent-sim.eye.x"]);
+    expect(eye.dotKeysFor("device-1/eye.position.x")).toEqual(["ent@feedback.eye.x"]);
+    expect(eye.dotKeysFor("device-1/eye/target.position.x")).toEqual(["ent@target.eye.x"]);
+    expect(eye.targetFor("ent@target.eye.x")?.key).toBe("eye.x.target_position");
+  });
+
+  it("reads nothing of a device whose keys the World does not know yet", () => {
+    const unpaired = new SceneBinding([
+      {
+        entity,
+        animatables: [joint],
+        keys,
+        inputs,
+        deviceInputs: { "ent-sim": inputs, "device-1": {} },
+        deviceFeedback: { "ent-sim": feedback, "device-1": {} },
+      },
+    ]);
+    expect(unpaired.storeKeys.filter((key) => key.startsWith("device-1/"))).toEqual([]);
   });
 
   it("answers nothing for a key nothing reads", () => {
@@ -313,8 +391,16 @@ describe("SceneBinding", () => {
       realDeviceId: "device-1",
     };
     const shared = new SceneBinding([
-      { entity, animatables: [joint], keys, inputs, deviceInputs },
-      { entity: other, animatables: [joint], keys, inputs, deviceInputs, follows: "feedback" },
+      { entity, animatables: [joint], keys, inputs, deviceInputs, deviceFeedback },
+      {
+        entity: other,
+        animatables: [joint],
+        keys,
+        inputs,
+        deviceInputs,
+        deviceFeedback,
+        follows: "feedback",
+      },
     ]);
     expect(shared.dotKeysFor("device-1/joint1.position")).toEqual([
       "ent@feedback.anim-joint",
