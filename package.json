@@ -1,7 +1,7 @@
 {
   "name": "@semio/utils",
   "description": "Shared typescript utilities.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/semio-ai/semio_studio.git",
