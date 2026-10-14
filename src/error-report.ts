@@ -32,7 +32,7 @@ export interface ErrorReport {
 /** Strip URL credentials/query/fragment and common credential assignments from report text. */
 export function redactDiagnosticText(text: string): string {
   return text
-    .replace(/https?:\/\/[^\s<>"']+/g, (value) => {
+    .replace(/(?:https?|wss?):\/\/[^\s<>"']+/gi, (value) => {
       try {
         const url = new URL(value);
         url.username = "";
@@ -46,7 +46,11 @@ export function redactDiagnosticText(text: string): string {
     })
     .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [redacted]")
     .replace(
-      /\b(password|secret|token|api[_-]?key|authorization)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
+      /\bauthorization["']?\s*[:=]\s*(?:"[^"\r\n]*(?:"|$)|'[^'\r\n]*(?:'|$)|[^\r\n,;]+)/gi,
+      "authorization=[redacted]",
+    )
+    .replace(
+      /\b([\w-]*(?:password|secret|token|api[_-]?key))["']?\s*[:=]\s*(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^\s,;]+)/gi,
       "$1=[redacted]",
     );
 }
@@ -66,6 +70,13 @@ function field(value: unknown, key: string): unknown {
 export function toDiagnosticError(input: unknown): DiagnosticError {
   const seen = new Set<object>();
   let remaining = 32;
+  // A shared text budget bounds the whole cause tree, including stacks and backtraces.
+  let textRemaining = 65536;
+  const sanitize = (raw: string, limit: number) => {
+    const value = redactDiagnosticText(raw.slice(0, Math.min(limit, textRemaining)));
+    textRemaining = Math.max(0, textRemaining - value.length);
+    return value;
+  };
   function normalize(current: unknown, depth: number): DiagnosticError {
     if (--remaining < 0) return { message: "[cause count limit]" };
     if (depth >= 5) return { message: "[cause depth limit]" };
@@ -75,14 +86,12 @@ export function toDiagnosticError(input: unknown): DiagnosticError {
     }
     const text = (key: string, limit = 4096) => {
       const raw = field(current, key);
-      return typeof raw === "string" ? redactDiagnosticText(raw.slice(0, limit)) : undefined;
+      return typeof raw === "string" ? sanitize(raw, limit) : undefined;
     };
     const message =
       text("message") ??
       text("data") ??
-      (typeof current === "string"
-        ? redactDiagnosticText(current.slice(0, 4096))
-        : "Unknown error");
+      (typeof current === "string" ? sanitize(current, 4096) : "Unknown error");
     const error: DiagnosticError = { message };
     for (const key of ["name", "kind", "code"] as const) {
       const value = text(key);
@@ -96,8 +105,14 @@ export function toDiagnosticError(input: unknown): DiagnosticError {
     if (typeof status === "number" && Number.isFinite(status)) error.status = status;
     const causes = field(current, "causes");
     const cause = field(current, "cause");
-    const nested = Array.isArray(causes) ? causes.slice(0, 8) : cause === undefined ? [] : [cause];
+    const nested: unknown[] = [];
+    if (Array.isArray(causes)) {
+      const length = field(causes, "length");
+      for (let i = 0; i < Math.min(typeof length === "number" ? length : 0, 8); i++)
+        nested.push(field(causes, String(i)));
+    } else if (cause != null) nested.push(cause);
     if (nested.length) error.causes = nested.map((entry) => normalize(entry, depth + 1));
+    if (current !== null && typeof current === "object") seen.delete(current);
     return error;
   }
   return normalize(input, 0);

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "./result";
-import { createErrorReport, formatErrorReport, toDiagnosticError } from "./error-report";
+import {
+  createErrorReport,
+  formatErrorReport,
+  toDiagnosticError,
+  redactDiagnosticText,
+} from "./error-report";
 
 describe("error reports", () => {
   it("preserves native Error fields and structured causes through Result's error branch", () => {
@@ -70,5 +75,36 @@ describe("error reports", () => {
         },
       }).message,
     ).toBe("Unknown error");
+  });
+  it("redacts prefixed credential assignments, Basic authorization and bridge URL parameters", () => {
+    const text = redactDiagnosticText(
+      "access_token=test-only refresh_token=test-only id_token=test-only clientSecret=test-only appSecret=test-only\nAuthorization: Basic test-only\nwss://user:pass@example.test/bridge?key=test-only#private",
+    );
+    expect(text).not.toContain("test-only");
+    expect(text).not.toContain("user:pass");
+    expect(text).toContain("wss://example.test/bridge");
+  });
+
+  it("bounds aggregate diagnostic text, handles repeated causes and ignores null causes", () => {
+    const shared = { message: "Repeated" };
+    expect(toDiagnosticError({ message: "Root", causes: [shared, shared] }).causes).toEqual([
+      shared,
+      shared,
+    ]);
+    expect(toDiagnosticError({ message: "Root", cause: null }).causes).toBeUndefined();
+    const branch = () => ({
+      message: "m".repeat(4096),
+      stack: "s".repeat(16384),
+      backtrace: "b".repeat(16384),
+    });
+    const normalized = toDiagnosticError({
+      ...branch(),
+      causes: Array.from({ length: 8 }, branch),
+    });
+    expect(JSON.stringify(normalized).length).toBeLessThan(68000);
+  });
+  it("redacts quoted values when a diagnostic string limit cuts off the closing quote", () => {
+    const error = toDiagnosticError({ message: `token="first ${"test-only ".repeat(1000)}"` });
+    expect(error.message).toBe("token=[redacted]");
   });
 });

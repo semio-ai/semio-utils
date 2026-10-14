@@ -87,6 +87,6 @@ for technical details or a toast's `clipboardContent`. Reporting does not unwrap
 success values or convert failures into exceptions. Exception boundaries use the
 same adapter for unexpected runtime failures.
 
-The adapter bounds strings and causes, omits arbitrary payload fields, and redacts
-URL credentials/queries/fragments and common credential assignments. Callers must
+The adapter bounds individual strings, total diagnostic text (65,536 characters), and causes, omits arbitrary payload fields, and redacts
+HTTP(S) and WebSocket URL credentials/queries/fragments and common credential assignments. Callers must
 still omit sensitive free-form content; this is not a general-purpose secret scanner.
