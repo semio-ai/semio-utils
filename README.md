@@ -72,3 +72,21 @@ useValuesStore.getState().updateValues(new Map([["my.animatable.id", nextValue]]
 ## License
 
 MIT
+
+### Error reports and Result
+
+`DiagnosticError` is a transport-neutral object with `message`, optional `kind`,
+`code`, `status`, `causes`, `stack` and `backtrace`. Rust adapters can emit this
+shape as serialized data; no JavaScript Error instance is required. The enclosing
+`ErrorReport` has `schemaVersion: 1`, a timestamp, and allowlisted UI context.
+
+Keep domain operations typed as `Result<T, E>`. At a presentation boundary use
+`result.mapErr(toDiagnosticError)` or normalize the error within `result.match`.
+`createErrorReport` adds context, and `formatErrorReport` provides the same JSON
+for technical details or a toast's `clipboardContent`. Reporting does not unwrap
+success values or convert failures into exceptions. Exception boundaries use the
+same adapter for unexpected runtime failures.
+
+The adapter bounds individual strings, total diagnostic text (65,536 characters), and causes, omits arbitrary payload fields, and redacts
+HTTP(S) and WebSocket URL credentials/queries/fragments and common credential assignments. Callers must
+still omit sensitive free-form content; this is not a general-purpose secret scanner.
