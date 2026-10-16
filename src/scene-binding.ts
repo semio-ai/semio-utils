@@ -237,22 +237,55 @@ export interface SceneBindingEntry {
   deviceFeedback: Readonly<Record<string, FeedbackKeys>>;
   /** Which bound device's inputs the `target` instance reads; `sim` when not given. */
   follows?: FollowedInstance;
+  /**
+   * The inputs each bound device opens beyond the entity's animatables, by
+   * device id, relative to the device (the World's `deviceInputs`). The
+   * `target` instance shows each one under {@link undeclaredInputId}, read
+   * from the followed device when it opens it, else from the first device
+   * that does; a write on it goes to every device that opens it.
+   */
+  undeclaredInputs?: Readonly<Record<string, readonly string[]>>;
 }
 
-/** Where a write on a target dot key goes: the entity, which routes it to its bound devices. */
+/**
+ * The id under which an entity's `target` instance shows an input a bound
+ * device opens beyond the entity's animatables, `key` as the device lists it:
+ * the dot key's last segment, as an animatable's id is for its input. The
+ * prefix keeps it apart from every animatable id.
+ */
+export function undeclaredInputId(key: string): string {
+  return `${UNDECLARED_INPUT_PREFIX}${key}`;
+}
+
+const UNDECLARED_INPUT_PREFIX = "device-input:";
+
+/**
+ * Where a write on a target dot key goes: for an animatable's input, the
+ * entity, which routes it to its bound devices; for an input devices open
+ * beyond the entity's animatables, those devices.
+ */
 export interface TargetBinding {
   /** The entity the write is addressed to. */
   entityId: string;
-  /** The entity's input key the write addresses, which the World routes to each bound device's own. */
+  /**
+   * The entity's input key the write addresses, which the World routes to
+   * each bound device's own; for an input beyond the animatables, the key as
+   * the devices list it.
+   */
   key: string;
-  /** The animatable the key belongs to, for the value's type. */
-  animatable: AnimatableValue;
+  /** The animatable the key belongs to, for the value's type; none for an input beyond the animatables. */
+  animatable?: AnimatableValue;
   /**
    * The full store key the target instance reads for it, the input under the
    * device the view follows; `undefined` when the entity has no followed
    * device. A refused write is undone by reading it.
    */
   storeKey: string | undefined;
+  /**
+   * For an input beyond the entity's animatables: the bound devices that open
+   * it, each written `key` directly. Absent for an animatable's input.
+   */
+  devices?: readonly string[];
 }
 
 /**
@@ -274,6 +307,11 @@ export interface TargetBinding {
  * writes only: nothing in the store maps to its dot keys, and `targetFor` still
  * resolves them, since the write is the entity's and reaches whichever devices
  * are bound to it.
+ *
+ * An input a bound device opens beyond the entity's animatables is shown on
+ * the `target` instance under {@link undeclaredInputId}, read from the followed
+ * device when it opens it, else from the first device that does; its write is
+ * no entity's, so `targetFor` names the devices that open it.
  *
  * It is a value: rebuilt whenever the entities, the animatables, the key
  * tables or a device's input keys change, never mutated.
@@ -327,11 +365,44 @@ export class SceneBinding {
             });
           }
           if (storeKey === undefined) continue;
-          const bound = this.dotKeysByStoreKey.get(storeKey);
-          if (bound) bound.push(dotKey);
-          else this.dotKeysByStoreKey.set(storeKey, [dotKey]);
+          this.bindStoreKey(storeKey, dotKey);
         }
       }
+      this.bindUndeclaredInputs(entry, follows);
+    }
+  }
+
+  /** Has `dotKey` show what `storeKey` holds. */
+  private bindStoreKey(storeKey: string, dotKey: string): void {
+    const bound = this.dotKeysByStoreKey.get(storeKey);
+    if (bound) bound.push(dotKey);
+    else this.dotKeysByStoreKey.set(storeKey, [dotKey]);
+  }
+
+  /**
+   * Binds the inputs an entity's devices open beyond its animatables on its
+   * `target` instance: each shows the followed device's key when that device
+   * opens it, else the first opening device's, and a write on it goes to
+   * every device that opens it.
+   */
+  private bindUndeclaredInputs(entry: SceneBindingEntry, follows: FollowedInstance): void {
+    const { entity, undeclaredInputs = {} } = entry;
+    const namespace = entityNamespace(entity.id, entity.instances.target.id);
+    const followed = followedDeviceId(entity, follows);
+    const openedBy = new Map<string, string[]>();
+    for (const [deviceId, keys] of Object.entries(undeclaredInputs)) {
+      for (const key of keys) {
+        const devices = openedBy.get(key);
+        if (devices) devices.push(deviceId);
+        else openedBy.set(key, [deviceId]);
+      }
+    }
+    for (const [key, devices] of openedBy) {
+      const shown = followed !== undefined && devices.includes(followed) ? followed : devices[0];
+      const storeKey = `${shown}/${key}`;
+      const dotKey = getLookup(namespace, undeclaredInputId(key));
+      this.targetByDotKey.set(dotKey, { entityId: entity.id, key, storeKey, devices });
+      this.bindStoreKey(storeKey, dotKey);
     }
   }
 

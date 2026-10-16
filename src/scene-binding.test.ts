@@ -15,6 +15,7 @@ import {
   parseKeyTable,
   storeKeyFor,
   toTaggedValue,
+  undeclaredInputId,
 } from "./scene-binding";
 
 const joint: AnimatableNumber = {
@@ -410,6 +411,58 @@ describe("SceneBinding", () => {
       "twin@target.anim-joint",
     ]);
     expect(shared.dotKeysFor("ent-sim/joint1.target_position")).toEqual(["ent@target.anim-joint"]);
+  });
+});
+
+describe("SceneBinding, the inputs devices open beyond the animatables", () => {
+  const undeclared = (
+    undeclaredInputs: Record<string, string[]>,
+    follows: "sim" | "feedback" = "sim",
+  ) =>
+    new SceneBinding([
+      {
+        entity,
+        animatables: [joint],
+        keys,
+        inputs,
+        deviceInputs,
+        deviceFeedback,
+        follows,
+        undeclaredInputs,
+      },
+    ]);
+  const fan = getLookup("ent@target", undeclaredInputId("fan.target_value"));
+
+  it("shows one on the target instance under its own id, read from the followed device when it opens it", () => {
+    const both = undeclared({ "ent-sim": ["fan.target_value"], "device-1": ["fan.target_value"] });
+    expect(fan).toBe("ent@target.device-input:fan.target_value");
+    expect(both.dotKeysFor("ent-sim/fan.target_value")).toEqual([fan]);
+    expect(both.dotKeysFor("device-1/fan.target_value")).toEqual([]);
+    expect(both.targetFor(fan)).toEqual({
+      entityId: "ent",
+      key: "fan.target_value",
+      storeKey: "ent-sim/fan.target_value",
+      devices: ["ent-sim", "device-1"],
+    });
+
+    const followingRobot = undeclared(
+      { "ent-sim": ["fan.target_value"], "device-1": ["fan.target_value"] },
+      "feedback",
+    );
+    expect(followingRobot.targetFor(fan)?.storeKey).toBe("device-1/fan.target_value");
+  });
+
+  it("reads one the followed device does not open from the device that does, and writes that device alone", () => {
+    const robotOnly = undeclared({ "ent-sim": [], "device-1": ["fan.target_value"] });
+    expect(robotOnly.dotKeysFor("device-1/fan.target_value")).toEqual([fan]);
+    expect(robotOnly.targetFor(fan)).toEqual({
+      entityId: "ent",
+      key: "fan.target_value",
+      storeKey: "device-1/fan.target_value",
+      devices: ["device-1"],
+    });
+    // An animatable's write still goes to the entity.
+    expect(robotOnly.targetFor("ent@target.anim-joint")?.devices).toBeUndefined();
   });
 });
 
