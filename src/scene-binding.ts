@@ -19,6 +19,15 @@ export type TaggedValue = { f64: number } | { str: string } | { bool: boolean };
 /** The serde tags of arora's numeric `Value` variants, all read as a number. */
 const NUMERIC_TAGS = new Set(["f64", "f32", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]);
 
+/**
+ * Whether an arora type name (a `Value` tag, a `KeyMeta.ty`) is a number's:
+ * one of the numeric variants, which a number control edits and
+ * {@link fromTaggedValue} reads as a number.
+ */
+export function isNumberType(ty: string): boolean {
+  return NUMERIC_TAGS.has(ty);
+}
+
 /** The tagged `Value` JSON for a scalar: `number` is an `f64`, never an integer. */
 export function toTaggedValue(value: ScalarValue): TaggedValue {
   switch (typeof value) {
