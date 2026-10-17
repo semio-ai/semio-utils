@@ -29,3 +29,4 @@ export * from "./three-guards";
 export * from "./unit-display";
 export * from "./scene-binding";
 export * from "./error-report";
+export * from "./canvas-frameloop";
