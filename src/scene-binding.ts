@@ -247,54 +247,75 @@ export interface SceneBindingEntry {
   /** Which bound device's inputs the `target` instance reads; `sim` when not given. */
   follows?: FollowedInstance;
   /**
-   * The inputs each bound device opens beyond the entity's animatables, by
-   * device id, relative to the device (the World's `deviceInputs`). The
-   * `target` instance shows each one under {@link undeclaredInputId}, read
-   * from the followed device when it opens it, else from the first device
-   * that does; a write on it goes to every device that opens it.
+   * The inputs the entity's runtime — its emulated device, the `sim`
+   * instance's — declares beyond its animatables (the World's
+   * `entityInputs`). The `target` instance shows each under
+   * {@link runtimeInputId}, read from the runtime; a write on it is the
+   * entity's, which the World passes to every bound device under the key.
    */
-  undeclaredInputs?: Readonly<Record<string, readonly string[]>>;
+  runtimeInputs?: readonly RuntimeInput[];
 }
 
 /**
- * The id under which an entity's `target` instance shows an input a bound
- * device opens beyond the entity's animatables, `key` as the device lists it:
- * the dot key's last segment, as an animatable's id is for its input. The
- * prefix keeps it apart from every animatable id.
+ * An input an entity's runtime declares beyond the entity's animatables: its
+ * key on the runtime and the arora type the runtime declares it in.
  */
-export function undeclaredInputId(key: string): string {
-  return `${UNDECLARED_INPUT_PREFIX}${key}`;
+export interface RuntimeInput {
+  /** Its key, relative to the runtime's namespace. */
+  key: string;
+  /** Its arora type (`KeyMeta.ty`), which a number written to it is tagged as. */
+  ty?: string;
 }
 
-const UNDECLARED_INPUT_PREFIX = "device-input:";
+const RUNTIME_INPUT_PREFIX = "input:";
 
 /**
- * Where a write on a target dot key goes: for an animatable's input, the
- * entity, which routes it to its bound devices; for an input devices open
- * beyond the entity's animatables, those devices.
+ * The id under which Studio shows an input an entity's runtime declares
+ * beyond its animatables, `key` as the runtime declares it: what an
+ * animatable's id is for its input — the last segment of the dot key, the
+ * `animatableId` of a track on it. The key is percent-encoded, its dots
+ * included, so that the id holds no `.`, `/` or `@`, which dot keys, track
+ * source ids and namespaces are split on; the prefix keeps it apart from
+ * every animatable id. {@link runtimeInputKey} reads the key back.
+ */
+export function runtimeInputId(key: string): string {
+  return `${RUNTIME_INPUT_PREFIX}${encodeURIComponent(key).replaceAll(".", "%2E")}`;
+}
+
+/** The key of a runtime input's id ({@link runtimeInputId}); `undefined` for any other id. */
+export function runtimeInputKey(id: string): string | undefined {
+  if (!id.startsWith(RUNTIME_INPUT_PREFIX)) return undefined;
+  try {
+    return decodeURIComponent(id.slice(RUNTIME_INPUT_PREFIX.length));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Where a write on a target dot key goes: the entity, which routes it to its
+ * bound devices.
  */
 export interface TargetBinding {
   /** The entity the write is addressed to. */
   entityId: string;
   /**
-   * The entity's input key the write addresses, which the World routes to
-   * each bound device's own; for an input beyond the animatables, the key as
-   * the devices list it.
+   * The entity's input key the write addresses: an animatable's, which the
+   * World routes to each bound device's own, or one its runtime declares
+   * beyond them, which reaches every device as it is named.
    */
   key: string;
-  /** The animatable the key belongs to, for the value's type; none for an input beyond the animatables. */
+  /** The animatable the key belongs to; none for an input the runtime declares beyond them. */
   animatable?: AnimatableValue;
+  /** For an input the runtime declares beyond the animatables, the arora type it declares it in. */
+  ty?: string;
   /**
-   * The full store key the target instance reads for it, the input under the
-   * device the view follows; `undefined` when the entity has no followed
-   * device. A refused write is undone by reading it.
+   * The full store key the target instance reads for it — an animatable's
+   * input under the device the view follows, a runtime input under the
+   * runtime; `undefined` when the entity has no such device. A refused write
+   * is undone by reading it.
    */
   storeKey: string | undefined;
-  /**
-   * For an input beyond the entity's animatables: the bound devices that open
-   * it, each written `key` directly. Absent for an animatable's input.
-   */
-  devices?: readonly string[];
 }
 
 /**
@@ -317,10 +338,9 @@ export interface TargetBinding {
  * resolves them, since the write is the entity's and reaches whichever devices
  * are bound to it.
  *
- * An input a bound device opens beyond the entity's animatables is shown on
- * the `target` instance under {@link undeclaredInputId}, read from the followed
- * device when it opens it, else from the first device that does; its write is
- * no entity's, so `targetFor` names the devices that open it.
+ * An input the entity's runtime declares beyond its animatables is shown on
+ * the `target` instance under {@link runtimeInputId}, read from the runtime,
+ * and written to the entity under its key, as an animatable's input is.
  *
  * It is a value: rebuilt whenever the entities, the animatables, the key
  * tables or a device's input keys change, never mutated.
@@ -377,7 +397,7 @@ export class SceneBinding {
           this.bindStoreKey(storeKey, dotKey);
         }
       }
-      this.bindUndeclaredInputs(entry, follows);
+      this.bindRuntimeInputs(entry);
     }
   }
 
@@ -389,29 +409,18 @@ export class SceneBinding {
   }
 
   /**
-   * Binds the inputs an entity's devices open beyond its animatables on its
-   * `target` instance: each shows the followed device's key when that device
-   * opens it, else the first opening device's, and a write on it goes to
-   * every device that opens it.
+   * Binds the inputs an entity's runtime declares beyond its animatables on
+   * its `target` instance, each read from the runtime and written to the
+   * entity.
    */
-  private bindUndeclaredInputs(entry: SceneBindingEntry, follows: FollowedInstance): void {
-    const { entity, undeclaredInputs = {} } = entry;
+  private bindRuntimeInputs({ entity, runtimeInputs = [] }: SceneBindingEntry): void {
     const namespace = entityNamespace(entity.id, entity.instances.target.id);
-    const followed = followedDeviceId(entity, follows);
-    const openedBy = new Map<string, string[]>();
-    for (const [deviceId, keys] of Object.entries(undeclaredInputs)) {
-      for (const key of keys) {
-        const devices = openedBy.get(key);
-        if (devices) devices.push(deviceId);
-        else openedBy.set(key, [deviceId]);
-      }
-    }
-    for (const [key, devices] of openedBy) {
-      const shown = followed !== undefined && devices.includes(followed) ? followed : devices[0];
-      const storeKey = `${shown}/${key}`;
-      const dotKey = getLookup(namespace, undeclaredInputId(key));
-      this.targetByDotKey.set(dotKey, { entityId: entity.id, key, storeKey, devices });
-      this.bindStoreKey(storeKey, dotKey);
+    const runtime = deviceIdOf(entity, "sim");
+    for (const { key, ty } of runtimeInputs) {
+      const storeKey = runtime === undefined ? undefined : `${runtime}/${key}`;
+      const dotKey = getLookup(namespace, runtimeInputId(key));
+      this.targetByDotKey.set(dotKey, { entityId: entity.id, key, ty, storeKey });
+      if (storeKey !== undefined) this.bindStoreKey(storeKey, dotKey);
     }
   }
 

@@ -15,7 +15,8 @@ import {
   parseKeyTable,
   storeKeyFor,
   toTaggedValue,
-  undeclaredInputId,
+  runtimeInputId,
+  runtimeInputKey,
 } from "./scene-binding";
 
 const joint: AnimatableNumber = {
@@ -414,11 +415,8 @@ describe("SceneBinding", () => {
   });
 });
 
-describe("SceneBinding, the inputs devices open beyond the animatables", () => {
-  const undeclared = (
-    undeclaredInputs: Record<string, string[]>,
-    follows: "sim" | "feedback" = "sim",
-  ) =>
+describe("SceneBinding, the inputs the runtime declares beyond the animatables", () => {
+  const withRuntimeInputs = (follows: "sim" | "feedback" = "sim") =>
     new SceneBinding([
       {
         entity,
@@ -428,41 +426,37 @@ describe("SceneBinding, the inputs devices open beyond the animatables", () => {
         deviceInputs,
         deviceFeedback,
         follows,
-        undeclaredInputs,
+        runtimeInputs: [
+          { key: "fan.target_value", ty: "bool" },
+          { key: "speaker/gain", ty: "u8" },
+        ],
       },
     ]);
-  const fan = getLookup("ent@target", undeclaredInputId("fan.target_value"));
+  const fan = getLookup("ent@target", runtimeInputId("fan.target_value"));
 
-  it("shows one on the target instance under its own id, read from the followed device when it opens it", () => {
-    const both = undeclared({ "ent-sim": ["fan.target_value"], "device-1": ["fan.target_value"] });
-    expect(fan).toBe("ent@target.device-input:fan.target_value");
-    expect(both.dotKeysFor("ent-sim/fan.target_value")).toEqual([fan]);
-    expect(both.dotKeysFor("device-1/fan.target_value")).toEqual([]);
-    expect(both.targetFor(fan)).toEqual({
+  it("shows one on the target instance under its own id, read from the runtime, and writes it to the entity", () => {
+    const binding = withRuntimeInputs();
+    expect(fan).toBe("ent@target.input:fan%2Etarget_value");
+    expect(binding.dotKeysFor("ent-sim/fan.target_value")).toEqual([fan]);
+    expect(binding.dotKeysFor("device-1/fan.target_value")).toEqual([]);
+    expect(binding.targetFor(fan)).toEqual({
       entityId: "ent",
       key: "fan.target_value",
+      ty: "bool",
       storeKey: "ent-sim/fan.target_value",
-      devices: ["ent-sim", "device-1"],
     });
-
-    const followingRobot = undeclared(
-      { "ent-sim": ["fan.target_value"], "device-1": ["fan.target_value"] },
-      "feedback",
+    expect(binding.targetFor(getLookup("ent@target", runtimeInputId("speaker/gain")))?.ty).toBe(
+      "u8",
     );
-    expect(followingRobot.targetFor(fan)?.storeKey).toBe("device-1/fan.target_value");
+    // The real device never shapes it, whichever device the view follows.
+    expect(withRuntimeInputs("feedback").targetFor(fan)?.storeKey).toBe("ent-sim/fan.target_value");
   });
 
-  it("reads one the followed device does not open from the device that does, and writes that device alone", () => {
-    const robotOnly = undeclared({ "ent-sim": [], "device-1": ["fan.target_value"] });
-    expect(robotOnly.dotKeysFor("device-1/fan.target_value")).toEqual([fan]);
-    expect(robotOnly.targetFor(fan)).toEqual({
-      entityId: "ent",
-      key: "fan.target_value",
-      storeKey: "device-1/fan.target_value",
-      devices: ["device-1"],
-    });
-    // An animatable's write still goes to the entity.
-    expect(robotOnly.targetFor("ent@target.anim-joint")?.devices).toBeUndefined();
+  it("names it by an id that holds none of the characters keys are split on, and reads the key back", () => {
+    const id = runtimeInputId("speaker/gain.db@2");
+    expect(id).not.toMatch(/[./@]/);
+    expect(runtimeInputKey(id)).toBe("speaker/gain.db@2");
+    expect(runtimeInputKey("anim-joint")).toBeUndefined();
   });
 });
 
