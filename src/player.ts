@@ -1,29 +1,25 @@
-/**
- * Time representation in milliseconds.
- */
-export type RawTime = number;
-
 export enum PlayerDirection {
   Reverse = "reverse",
   Forward = "forward",
 }
 
 /**
- * A timer implementation for managing animation playback.
+ * The state of animation playback, as the UI sets it and binds to.
  *
- * The timer operates in milliseconds, where:
+ * Stamps are in milliseconds, where:
  * - 0 represents the start of the animation
  * - duration (in ms) represents the end of the animation
  *
- * Fields prefixed with `_` (e.g. `_previousTime`, `_currentDirection`,
- * `_bounced`, `_enteredBounds`) are internal bookkeeping for the
- * `updated()` tick function and should not be read by external
+ * Nothing here advances the stamp while the player runs: Studio's `Transport`
+ * does, under the bounds, bounce and loop rules below, from the playhead of
+ * the animation module playing on the devices.
+ *
+ * Fields prefixed with `_` (`_currentDirection`, `_bounced`, `_enteredBounds`)
+ * are the bookkeeping of those rules and should not be read by other
  * consumers. They're on the public type because immutable spread-and-
  * return pattern means every `withX` helper must roundtrip them.
  *
  * @property running - Whether the timer is actively running
- * @property _previousTime - INTERNAL. Last update time in ms.
- * @property _currentTime - INTERNAL. Current update time in ms.
  * @property stamp - Current time position in milliseconds
  * @property speed - Playback speed multiplier (always positive)
  * @property direction - Initial playback direction (PlayerDirection.Forward or PlayerDirection.Reverse)
@@ -37,8 +33,6 @@ export enum PlayerDirection {
  */
 export interface Player {
   running: boolean;
-  _previousTime: RawTime;
-  _currentTime: RawTime;
   stamp: number;
   speed: number;
   direction: PlayerDirection;
@@ -52,123 +46,17 @@ export interface Player {
 }
 
 /**
- * Creates a copy of the provided timer, but updated with the new timestamp.
- * @param timer - the timer to be updated
- * @param stamp - the new timestamp in milliseconds
- * @returns the updated timer
+ * Creates a copy of the provided player, moved to a new stamp.
+ * @param player - the player to be moved
+ * @param stamp - the new stamp in milliseconds
+ * @returns the moved player
  */
 export function reset(player: Player, stamp?: number): Player {
   const p = { ...player };
-  const nowVal = now();
-  p._currentTime = nowVal;
-  p._previousTime = nowVal;
   p.stamp = stamp ? stamp : 0;
   p._currentDirection = p.direction;
   p._bounced = false;
   p._enteredBounds = false;
-  return p;
-}
-
-/**
- * Returns the current time in milliseconds.
- * @returns the current time in milliseconds
- */
-export function now(): RawTime {
-  return (typeof performance === "undefined" ? Date : performance).now();
-}
-
-/**
- * Creates a copy of the provided timer, but updated with a new timestamp as determined by
- * the timestamp since it was last called and the duration of the animation itself.
- * @param timer - the timer to be updated
- * @returns the updated timer
- */
-export function updated(player: Player, coldStart: boolean): Player {
-  const p = { ...player };
-  const duration = p.duration;
-
-  const t = now();
-  p._previousTime = coldStart ? t : p._currentTime;
-  p._currentTime = t;
-
-  const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
-
-  // Check if player has entered the specified bounds
-  if (currentInBounds && !p._enteredBounds) {
-    p._enteredBounds = true;
-  }
-
-  // Calculate effective timescale from speed and current direction
-  const effectiveTimescale = p.speed * (p._currentDirection === PlayerDirection.Forward ? 1 : -1);
-
-  // Compute the time delta in ms, multiplied by the effective speed.
-  // In v2 format, stamp is in ms — no normalization by duration needed.
-  const delta = (p._currentTime - p._previousTime) * effectiveTimescale;
-
-  // Apply the time delta
-  const updatedStamp = p.stamp + delta;
-
-  // Use full range [0, duration] as bounds when outside specified bounds and haven't entered them yet
-  // Otherwise use the actual bounds
-  const [start, end] = !p._enteredBounds && !currentInBounds ? [0, duration] : p.bounds;
-
-  // Check if player is moving toward the bounded region
-  const movingTowardBounds =
-    (p.stamp < start && p._currentDirection === PlayerDirection.Forward) ||
-    (p.stamp > end && p._currentDirection === PlayerDirection.Reverse);
-
-  // Apply boundary logic when crossing boundaries, unless moving toward bounds from outside
-  if (updatedStamp > end) {
-    if (movingTowardBounds) {
-      // Player is outside bounds moving toward them - allow natural movement
-      p.stamp = updatedStamp;
-    } else {
-      // Player is crossing out of bounds or moving further away - apply boundary logic
-      if (p.bounce && (p.looping || !p._bounced)) {
-        // Bounce: reverse current direction and clamp to boundary
-        p.stamp = end;
-        p._currentDirection =
-          p._currentDirection === PlayerDirection.Forward
-            ? PlayerDirection.Reverse
-            : PlayerDirection.Forward;
-        p._bounced = true;
-      } else if (p.looping) {
-        // Loop without bounce: return to start
-        p.stamp = start;
-      } else {
-        // No loop, no bounce: stop at boundary
-        p.stamp = end;
-        p.running = false;
-      }
-    }
-  } else if (updatedStamp < start) {
-    if (movingTowardBounds) {
-      // Player is outside bounds moving toward them - allow natural movement
-      p.stamp = updatedStamp;
-    } else {
-      // Player is crossing out of bounds or moving further away - apply boundary logic
-      if (p.bounce && (p.looping || !p._bounced)) {
-        // Bounce: reverse current direction and clamp to boundary
-        p.stamp = start;
-        p._currentDirection =
-          p._currentDirection === PlayerDirection.Forward
-            ? PlayerDirection.Reverse
-            : PlayerDirection.Forward;
-        p._bounced = true;
-      } else if (p.looping) {
-        // Loop without bounce: return to end
-        p.stamp = end;
-      } else {
-        // No loop, no bounce: stop at boundary
-        p.stamp = start;
-        p.running = false;
-      }
-    }
-  } else {
-    // Normal movement within or entering bounds
-    p.stamp = updatedStamp;
-  }
-
   return p;
 }
 
@@ -280,7 +168,6 @@ export function withDuration(player: Player, duration: number): Player {
  *
  * @returns A new Player instance initialized with:
  * - Not running
- * - Current timestamp
  * - Zero stamp position (0ms)
  * - Normal speed (1x)
  * - Forward direction
@@ -291,8 +178,6 @@ export function withDuration(player: Player, duration: number): Player {
 export function newPlayer(): Player {
   return {
     running: false,
-    _previousTime: now(),
-    _currentTime: now(),
     stamp: 0,
     speed: 1,
     direction: PlayerDirection.Forward,

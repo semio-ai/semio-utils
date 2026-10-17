@@ -4,8 +4,8 @@
  * way to manage animation playback time, direction, bounds, and looping.
  *
  * Viewport state lives separately (see `viewport-state` in @semio/animation)
- * so the player tick can advance time without fanning re-renders out to
- * every viewport subscriber.
+ * so the playhead can advance without fanning re-renders out to every
+ * viewport subscriber.
  */
 
 import { createContext } from "react";
@@ -20,7 +20,6 @@ import {
   play,
   pause,
   withBounds,
-  updated,
   withSpeed,
   withDirection,
   reversed,
@@ -58,8 +57,6 @@ export interface PlayerActions {
   playPlayer: (speed?: number, direction?: PlayerDirection) => void;
   /** Pauses the animation */
   pausePlayer: () => void;
-  /** Updates the timer */
-  updatePlayer: (coldStart?: boolean) => void;
   /** Sets the player bounds */
   updatePlayerBounds: (start: number, end: number) => void;
   /** Updates one bound of the player */
@@ -135,12 +132,6 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
   pausePlayer: () => {
     set((state: PlayerData) => ({ player: pause(state.player) }));
   },
-  // Update the timer
-  updatePlayer: (coldStart?: boolean) => {
-    set((state: PlayerData) => ({
-      player: updated(state.player, coldStart ?? false),
-    }));
-  },
   // Set the player bounds
   updatePlayerBounds: (start: number, end: number) => {
     set((state: PlayerData) => ({
@@ -181,11 +172,17 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
   },
 });
 
-export const usePlayerStore = create<PlayerData & PlayerActions>()(
-  subscribeWithSelector(PlayerSlice),
-);
+export const usePlayerStore = createPlayerStore();
 
-export type PlayerStore = typeof usePlayerStore;
+/**
+ * A player of its own, shaped like {@link usePlayerStore}: for a timeline whose
+ * host has no player to share with it (a story, a standalone sheet).
+ */
+export function createPlayerStore() {
+  return create<PlayerData & PlayerActions>()(subscribeWithSelector(PlayerSlice));
+}
+
+export type PlayerStore = ReturnType<typeof createPlayerStore>;
 
 // This creates a context where the single app store is stored.
 export const PlayerContext = createContext<PlayerStore | null>(null);

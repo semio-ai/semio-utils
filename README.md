@@ -15,14 +15,15 @@ Runtime peers you'll likely already have: `react`, `three`, `zustand`.
 
 ## What's inside
 
-| Area | Exports | Notes |
-| --- | --- | --- |
-| **Playback** | `usePlayerStore`, `Player`, and the pure transport functions `play` / `pause` / `seek` / `reset` | `usePlayerStore` holds transport state under `s.player` (`stamp`, `running`, `duration` — all in **milliseconds**). The pure functions operate on a `Player` value; `seek(player, stamp)` is a pure stamp-set. |
-| **Runtime values** | `useValuesStore`, `values-store` helpers | Single source of truth for the current value of every animatable. Read with the hook; write via `useValuesStore.getState().updateValues(map)`. |
-| **Math / geometry** | `euler`, `angles`, `hexagon`, `points-to-path`, `overlapping-segments`, `closest-frame`, `progress` | Pure functions, no React. |
-| **Color** | `colors` | Parsing, conversion, manipulation. |
-| **React helpers** | `useDeep`, `useMediaQuery`, context providers | |
-| **Misc** | `result`, `json`, `download`, `regex`, `time`, `lazy`, `pairwise`, `namespace`, `log` | |
+| Area                | Exports                                                                                                               | Notes                                                                                                                                                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Playback**        | `usePlayerStore`, `createPlayerStore`, `Player`, and the pure transport functions `play` / `pause` / `seek` / `reset` | `usePlayerStore` holds transport state under `s.player` (`stamp`, `running`, `duration` — all in **milliseconds**). The pure functions operate on a `Player` value; `seek(player, stamp)` is a pure stamp-set. `createPlayerStore()` makes a player of one's own, for a timeline whose host shares none. |
+| **Runtime values**  | `DataStore`, `DataStoreContext`, `useDataStore`, `watchKey`; `useValuesStore`, `createValuesStore`, `valuesDataStore` | The store port the scene, Vizij and animation packages read values through — Arora's data store interface (`read`, `slot`, `subscribe`), values as tagged arora `Value`s — and the values store that implements it in Studio.                                                                            |
+| **Scene binding**   | `SceneBinding`, `entityNamespace`, `namespaceEntity`, `storeKeyFor`                                                   | The table between the shared Arora store's keys and the dot keys a scene reads, and the `entityId@instanceId` namespace form, spelled by `entityNamespace` and read back by `namespaceEntity`. Input and feedback keys are the World's (`inputKeys`, `feedbackKeys`), resolved per device.               |
+| **Math / geometry** | `euler`, `angles`, `hexagon`, `points-to-path`, `overlapping-segments`, `closest-frame`, `progress`                   | Pure functions, no React.                                                                                                                                                                                                                                                                                |
+| **Color**           | `colors`                                                                                                              | Parsing, conversion, manipulation.                                                                                                                                                                                                                                                                       |
+| **React helpers**   | `useDeep`, `useMediaQuery`, context providers                                                                         |                                                                                                                                                                                                                                                                                                          |
+| **Misc**            | `result`, `json`, `download`, `regex`, `time`, `lazy`, `pairwise`, `namespace`, `log`                                 |                                                                                                                                                                                                                                                                                                          |
 
 Everything is re-exported from the package root:
 
@@ -59,14 +60,43 @@ player = seek(player, 2500); // pure stamp-set, returns a new Player
 
 ### Runtime values
 
+The packages read values through a `DataStore` the host injects. A host
+running on a values store of its own injects that store through the port:
+
+```tsx
+import { DataStoreContext, createValuesStore, valuesDataStore, watchKey } from "@semio/utils";
+
+const values = createValuesStore();
+const store = valuesDataStore(values);
+
+<DataStoreContext.Provider value={store}>
+  {/* a scene, a Vizij, a timeline */}
+</DataStoreContext.Provider>;
+
+// Write through the port: a key's cell, a tagged arora `Value`
+store.slot("my.animatable.id").set({ f64: 0.5 });
+
+// Watch a key as an animatable reads it: its scalar, or the fallback
+const stop = watchKey(store, "my.animatable.id", 0, (value) => console.log(value));
+```
+
+`subscribe` starts each subscriber from the store's whole state, then hands it
+each change (`{ set, unset }`, arora's `StateChange`).
+
+### Scene binding
+
+A `SceneBinding` is built from Studio's entities, their instances, the device
+each view follows and the World's key table, and a view reads two things from
+it, both plain strings: the store keys it shows (`storeKeys`), and the dot keys
+of the features each one feeds (`dotKeysFor`). That list is the seam a Bevy
+view takes: it reads the same store keys from the World's store in Rust, where
+the three.js scene reads their projection into the values store.
+
 ```ts
-import { useValuesStore } from "@semio/utils";
-
-// Read in a component
-const value = useValuesStore((s) => s.values.get("my.animatable.id"));
-
-// Write imperatively (e.g. from a gizmo drag) — updateValues takes a Map
-useValuesStore.getState().updateValues(new Map([["my.animatable.id", nextValue]]));
+for (const storeKey of binding.storeKeys) {
+  // "sim/joint1.position" → ["ent@sim.anim-joint"]
+  const features = binding.dotKeysFor(storeKey);
+}
 ```
 
 ### Canvas render loop
