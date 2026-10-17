@@ -1,5 +1,11 @@
 # @semio/utils
 
+## 0.4.0
+
+### Minor Changes
+
+- 718aa2c: Expose an optional, reactive canvas render-loop setting for host apps. Default to continuous rendering and leave demand-mode invalidation scheduling to the host.
+
 ## 0.3.0
 
 ### Minor Changes
