@@ -77,10 +77,8 @@ export function parseKeyTable(json: string): KeyTable | undefined {
  * key, an id equal to another's output, which the World refuses for an
  * entity.
  *
- * A device that renders an entity's animatables opens each under this key,
- * the key the World writes it under. The World's own statement of the rule
- * (`keys` in `packages/studio-arora/src/animatable.rs`) is the authority, and
- * a test on the real World holds the two to one table.
+ * The World's own statement of the rule, in `@semio/studio-arora`, is the
+ * authority, and a test on the real World holds the two to one table.
  */
 export function keyTableOf(animatables: readonly AnimatableValue[]): KeyTable {
   const publishers = new Map<string, number>();
@@ -93,6 +91,19 @@ export function keyTableOf(animatables: readonly AnimatableValue[]): KeyTable {
       pub?.output && publishers.get(pub.output) === 1 ? pub.output : id,
     ]),
   );
+}
+
+/**
+ * The bare input of an animatable keyed `key` (its {@link keyTableOf} key):
+ * `key` itself, or for the axis `axis` of a structured value (`group.axis`)
+ * its group's key — `key` without a trailing `.<axis>` — then `.<axis>`, so
+ * `key` whenever it ends in `.<axis>`. A device that opens this key and none of
+ * the animatable's target forms (`InputKeys`) is written there by the World.
+ * The World's spelling, in `@semio/studio-arora`, is the authority, and a test
+ * on the real World holds the two together.
+ */
+export function bareInputKey(key: string, axis?: string): string {
+  return axis === undefined || key.endsWith(`.${axis}`) ? key : `${key}.${axis}`;
 }
 
 /**

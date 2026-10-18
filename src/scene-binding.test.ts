@@ -8,6 +8,7 @@ import {
 import { getLookup } from "./namespace";
 import {
   SceneBinding,
+  bareInputKey,
   entityNamespace,
   followedDeviceId,
   fromTaggedValue,
@@ -114,6 +115,15 @@ describe("keyTableOf", () => {
       "anim-twin": "anim-twin",
       "anim-label": "label",
     });
+  });
+});
+
+describe("bareInputKey", () => {
+  it("is the key, or for an axis its group's key then the axis", () => {
+    expect(bareInputKey("joint1")).toBe("joint1");
+    expect(bareInputKey("look.x", "x")).toBe("look.x");
+    expect(bareInputKey("anim-eye", "x")).toBe("anim-eye.x");
+    expect(bareInputKey("look.y", "x")).toBe("look.y.x");
   });
 });
 
