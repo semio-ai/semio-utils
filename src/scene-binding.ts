@@ -51,10 +51,10 @@ export function fromTaggedValue(tagged: unknown): ScalarValue | undefined {
 /**
  * The name an animatable's keys carry under every device bound to its entity,
  * by animatable id, as the World returns it from `spawnEntity`. The World is
- * the authority on the rule (an animatable's `pub.output` when it is non-empty
- * and unique within the entity, else its id); nothing on this side recomputes
- * it, so an input and the feedback it produces line up key for key whatever
- * the rule does for an entity.
+ * the authority on the rule, which {@link keyTableOf} states; Studio's side
+ * reads the table the World returns rather than computing it, so an input and
+ * the feedback it produces line up key for key whatever the rule does for an
+ * entity.
  */
 export type KeyTable = Readonly<Record<string, string>>;
 
@@ -68,6 +68,31 @@ export function parseKeyTable(json: string): KeyTable | undefined {
   const entries = Object.entries(parsed);
   if (!entries.every(([, key]) => typeof key === "string")) return undefined;
   return Object.fromEntries(entries) as KeyTable;
+}
+
+/**
+ * The key table the World's rule gives an entity of `animatables`: each
+ * animatable's `pub.output` when it is non-empty and no other of `animatables`
+ * publishes the same output, else its id. Two animatables can come out on one
+ * key, an id equal to another's output, which the World refuses for an
+ * entity.
+ *
+ * A device that renders an entity's animatables opens each under this key,
+ * the key the World writes it under. The World's own statement of the rule
+ * (`keys` in `packages/studio-arora/src/animatable.rs`) is the authority, and
+ * a test on the real World holds the two to one table.
+ */
+export function keyTableOf(animatables: readonly AnimatableValue[]): KeyTable {
+  const publishers = new Map<string, number>();
+  for (const { pub } of animatables) {
+    if (pub?.output) publishers.set(pub.output, (publishers.get(pub.output) ?? 0) + 1);
+  }
+  return Object.fromEntries(
+    animatables.map(({ id, pub }) => [
+      id,
+      pub?.output && publishers.get(pub.output) === 1 ? pub.output : id,
+    ]),
+  );
 }
 
 /**

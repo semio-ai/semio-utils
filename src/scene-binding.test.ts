@@ -11,6 +11,7 @@ import {
   entityNamespace,
   followedDeviceId,
   fromTaggedValue,
+  keyTableOf,
   namespaceEntity,
   parseKeyTable,
   storeKeyFor,
@@ -95,6 +96,24 @@ describe("parseKeyTable", () => {
     expect(parseKeyTable('["joint1"]')).toBeUndefined();
     expect(parseKeyTable('{"anim-joint":1}')).toBeUndefined();
     expect(parseKeyTable('"joint1"')).toBeUndefined();
+  });
+});
+
+describe("keyTableOf", () => {
+  it("keys an animatable by its public output, else by its id", () => {
+    expect(keyTableOf([joint, label, lit])).toEqual(keys);
+    expect(keyTableOf([{ ...lit, pub: { public: true, output: "" } }])).toEqual({
+      "anim-lit": "anim-lit",
+    });
+  });
+
+  it("keys by id every animatable whose output another one publishes", () => {
+    const twin: AnimatableNumber = { ...joint, id: "anim-twin" };
+    expect(keyTableOf([joint, twin, label])).toEqual({
+      "anim-joint": "anim-joint",
+      "anim-twin": "anim-twin",
+      "anim-label": "label",
+    });
   });
 });
 
