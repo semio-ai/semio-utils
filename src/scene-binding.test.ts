@@ -8,9 +8,11 @@ import {
 import { getLookup } from "./namespace";
 import {
   SceneBinding,
+  bareInputKey,
   entityNamespace,
   followedDeviceId,
   fromTaggedValue,
+  keyTableOf,
   namespaceEntity,
   parseKeyTable,
   storeKeyFor,
@@ -97,6 +99,33 @@ describe("parseKeyTable", () => {
     expect(parseKeyTable('["joint1"]')).toBeUndefined();
     expect(parseKeyTable('{"anim-joint":1}')).toBeUndefined();
     expect(parseKeyTable('"joint1"')).toBeUndefined();
+  });
+});
+
+describe("keyTableOf", () => {
+  it("keys an animatable by its public output, else by its id", () => {
+    expect(keyTableOf([joint, label, lit])).toEqual(keys);
+    expect(keyTableOf([{ ...lit, pub: { public: true, output: "" } }])).toEqual({
+      "anim-lit": "anim-lit",
+    });
+  });
+
+  it("keys by id every animatable whose output another one publishes", () => {
+    const twin: AnimatableNumber = { ...joint, id: "anim-twin" };
+    expect(keyTableOf([joint, twin, label])).toEqual({
+      "anim-joint": "anim-joint",
+      "anim-twin": "anim-twin",
+      "anim-label": "label",
+    });
+  });
+});
+
+describe("bareInputKey", () => {
+  it("is the key, or for an axis its group's key then the axis", () => {
+    expect(bareInputKey("joint1")).toBe("joint1");
+    expect(bareInputKey("look.x", "x")).toBe("look.x");
+    expect(bareInputKey("anim-eye", "x")).toBe("anim-eye.x");
+    expect(bareInputKey("look.y", "x")).toBe("look.y.x");
   });
 });
 
