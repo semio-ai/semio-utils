@@ -19,6 +19,15 @@ export type TaggedValue = { f64: number } | { str: string } | { bool: boolean };
 /** The serde tags of arora's numeric `Value` variants, all read as a number. */
 const NUMERIC_TAGS = new Set(["f64", "f32", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"]);
 
+/**
+ * Whether an arora type name (a `Value` tag, a `KeyMeta.ty`) is a number's:
+ * one of the numeric variants, which a number control edits and
+ * {@link fromTaggedValue} reads as a number.
+ */
+export function isNumberType(ty: string): boolean {
+  return NUMERIC_TAGS.has(ty);
+}
+
 /** The tagged `Value` JSON for a scalar: `number` is an `f64`, never an integer. */
 export function toTaggedValue(value: ScalarValue): TaggedValue {
   switch (typeof value) {
@@ -273,20 +282,74 @@ export interface SceneBindingEntry {
   deviceFeedback: Readonly<Record<string, FeedbackKeys>>;
   /** Which bound device's inputs the `target` instance reads; `sim` when not given. */
   follows?: FollowedInstance;
+  /**
+   * The inputs the entity's runtime — its emulated device, the `sim`
+   * instance's — declares beyond its animatables (the World's
+   * `entityInputs`). The `target` instance shows each under
+   * {@link runtimeInputId}, read from the runtime; a write on it is the
+   * entity's, which the World passes to every bound device under the key.
+   */
+  runtimeInputs?: readonly RuntimeInput[];
 }
 
-/** Where a write on a target dot key goes: the entity, which routes it to its bound devices. */
+/**
+ * An input an entity's runtime declares beyond the entity's animatables: its
+ * key on the runtime and the arora type the runtime declares it in.
+ */
+export interface RuntimeInput {
+  /** Its key, relative to the runtime's namespace. */
+  key: string;
+  /** Its arora type (`KeyMeta.ty`), which a number written to it is tagged as. */
+  ty?: string;
+}
+
+const RUNTIME_INPUT_PREFIX = "input:";
+
+/**
+ * The id under which Studio shows an input an entity's runtime declares
+ * beyond its animatables, `key` as the runtime declares it: what an
+ * animatable's id is for its input — the last segment of the dot key, the
+ * `animatableId` of a track on it. The key is percent-encoded, its dots
+ * included, so that the id holds no `.`, `/` or `@`, which dot keys, track
+ * source ids and namespaces are split on; the prefix keeps it apart from
+ * every animatable id. {@link runtimeInputKey} reads the key back.
+ */
+export function runtimeInputId(key: string): string {
+  return `${RUNTIME_INPUT_PREFIX}${encodeURIComponent(key).replaceAll(".", "%2E")}`;
+}
+
+/** The key of a runtime input's id ({@link runtimeInputId}); `undefined` for any other id. */
+export function runtimeInputKey(id: string): string | undefined {
+  if (!id.startsWith(RUNTIME_INPUT_PREFIX)) return undefined;
+  try {
+    return decodeURIComponent(id.slice(RUNTIME_INPUT_PREFIX.length));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Where a write on a target dot key goes: the entity, which routes it to its
+ * bound devices.
+ */
 export interface TargetBinding {
   /** The entity the write is addressed to. */
   entityId: string;
-  /** The entity's input key the write addresses, which the World routes to each bound device's own. */
-  key: string;
-  /** The animatable the key belongs to, for the value's type. */
-  animatable: AnimatableValue;
   /**
-   * The full store key the target instance reads for it, the input under the
-   * device the view follows; `undefined` when the entity has no followed
-   * device. A refused write is undone by reading it.
+   * The entity's input key the write addresses: an animatable's, which the
+   * World routes to each bound device's own, or one its runtime declares
+   * beyond them, which reaches every device as it is named.
+   */
+  key: string;
+  /** The animatable the key belongs to; none for an input the runtime declares beyond them. */
+  animatable?: AnimatableValue;
+  /** For an input the runtime declares beyond the animatables, the arora type it declares it in. */
+  ty?: string;
+  /**
+   * The full store key the target instance reads for it — an animatable's
+   * input under the device the view follows, a runtime input under the
+   * runtime; `undefined` when the entity has no such device. A refused write
+   * is undone by reading it.
    */
   storeKey: string | undefined;
 }
@@ -310,6 +373,10 @@ export interface TargetBinding {
  * writes only: nothing in the store maps to its dot keys, and `targetFor` still
  * resolves them, since the write is the entity's and reaches whichever devices
  * are bound to it.
+ *
+ * An input the entity's runtime declares beyond its animatables is shown on
+ * the `target` instance under {@link runtimeInputId}, read from the runtime,
+ * and written to the entity under its key, as an animatable's input is.
  *
  * It is a value: rebuilt whenever the entities, the animatables, the key
  * tables or a device's input keys change, never mutated.
@@ -363,11 +430,33 @@ export class SceneBinding {
             });
           }
           if (storeKey === undefined) continue;
-          const bound = this.dotKeysByStoreKey.get(storeKey);
-          if (bound) bound.push(dotKey);
-          else this.dotKeysByStoreKey.set(storeKey, [dotKey]);
+          this.bindStoreKey(storeKey, dotKey);
         }
       }
+      this.bindRuntimeInputs(entry);
+    }
+  }
+
+  /** Has `dotKey` show what `storeKey` holds. */
+  private bindStoreKey(storeKey: string, dotKey: string): void {
+    const bound = this.dotKeysByStoreKey.get(storeKey);
+    if (bound) bound.push(dotKey);
+    else this.dotKeysByStoreKey.set(storeKey, [dotKey]);
+  }
+
+  /**
+   * Binds the inputs an entity's runtime declares beyond its animatables on
+   * its `target` instance, each read from the runtime and written to the
+   * entity.
+   */
+  private bindRuntimeInputs({ entity, runtimeInputs = [] }: SceneBindingEntry): void {
+    const namespace = entityNamespace(entity.id, entity.instances.target.id);
+    const runtime = deviceIdOf(entity, "sim");
+    for (const { key, ty } of runtimeInputs) {
+      const storeKey = runtime === undefined ? undefined : `${runtime}/${key}`;
+      const dotKey = getLookup(namespace, runtimeInputId(key));
+      this.targetByDotKey.set(dotKey, { entityId: entity.id, key, ty, storeKey });
+      if (storeKey !== undefined) this.bindStoreKey(storeKey, dotKey);
     }
   }
 

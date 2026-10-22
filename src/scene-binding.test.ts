@@ -17,6 +17,8 @@ import {
   parseKeyTable,
   storeKeyFor,
   toTaggedValue,
+  runtimeInputId,
+  runtimeInputKey,
 } from "./scene-binding";
 
 const joint: AnimatableNumber = {
@@ -439,6 +441,51 @@ describe("SceneBinding", () => {
       "twin@target.anim-joint",
     ]);
     expect(shared.dotKeysFor("ent-sim/joint1.target_position")).toEqual(["ent@target.anim-joint"]);
+  });
+});
+
+describe("SceneBinding, the inputs the runtime declares beyond the animatables", () => {
+  const withRuntimeInputs = (follows: "sim" | "feedback" = "sim") =>
+    new SceneBinding([
+      {
+        entity,
+        animatables: [joint],
+        keys,
+        inputs,
+        deviceInputs,
+        deviceFeedback,
+        follows,
+        runtimeInputs: [
+          { key: "fan.target_value", ty: "bool" },
+          { key: "speaker/gain", ty: "u8" },
+        ],
+      },
+    ]);
+  const fan = getLookup("ent@target", runtimeInputId("fan.target_value"));
+
+  it("shows one on the target instance under its own id, read from the runtime, and writes it to the entity", () => {
+    const binding = withRuntimeInputs();
+    expect(fan).toBe("ent@target.input:fan%2Etarget_value");
+    expect(binding.dotKeysFor("ent-sim/fan.target_value")).toEqual([fan]);
+    expect(binding.dotKeysFor("device-1/fan.target_value")).toEqual([]);
+    expect(binding.targetFor(fan)).toEqual({
+      entityId: "ent",
+      key: "fan.target_value",
+      ty: "bool",
+      storeKey: "ent-sim/fan.target_value",
+    });
+    expect(binding.targetFor(getLookup("ent@target", runtimeInputId("speaker/gain")))?.ty).toBe(
+      "u8",
+    );
+    // The real device never shapes it, whichever device the view follows.
+    expect(withRuntimeInputs("feedback").targetFor(fan)?.storeKey).toBe("ent-sim/fan.target_value");
+  });
+
+  it("names it by an id that holds none of the characters keys are split on, and reads the key back", () => {
+    const id = runtimeInputId("speaker/gain.db@2");
+    expect(id).not.toMatch(/[./@]/);
+    expect(runtimeInputKey(id)).toBe("speaker/gain.db@2");
+    expect(runtimeInputKey("anim-joint")).toBeUndefined();
   });
 });
 
