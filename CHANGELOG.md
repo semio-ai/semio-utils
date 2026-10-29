@@ -1,5 +1,38 @@
 # @semio/utils
 
+## 0.5.0
+
+### Minor Changes
+
+- a26939f: The store port the scene and Vizij packages read values through: Arora's data store interface, injected by the host.
+  - **`DataStore`** — `read(keys)`, `slot(key)` (a `Slot` with `get` and `set`) and `subscribe(listener)`, whose first call is the store's whole state and every later one a `StateChange` (`{ set, unset }`). Values are arora `Value`s in their tagged JSON form (`AroraValue`, `{ "f64": 0.5 }`).
+  - **`DataStoreContext`** and **`useDataStore()`**, which throws when no provider injects a store.
+  - **`watchKey(store, key, fallback, onValue)`** — an animatable's key as the packages read it: its scalar, or the fallback while the key holds none, now and at each change.
+  - **`createValuesStore()`** makes a values store of one's own, shaped like `useValuesStore`; **`valuesDataStore(store)`** presents one through the port, which is how Studio injects `useValuesStore`.
+
+- 4bb39a2: Add versioned, transport-neutral diagnostic reports compatible with structured
+  Result errors, JavaScript exceptions, and Rust error adapters. Reports preserve
+  error kinds, codes, bounded causes and optional stacks/backtraces, allowlist UI
+  context, and redact common credentials and URL queries.
+
+  Add optional medium sizing and a custom footer to Dialog, with scrolling body
+  content and fixed header/footer controls for long reports.
+
+- 6e59734: `SceneBinding`: the table between the shared Arora store's keys and the dot keys the scene reads, with the value conversions at the JS boundary. Every key it reads is a device's: an entity owns no namespace in the store.
+  - **Keys come from the World.** An animatable's name (`pub.output` when non-empty and unique within the entity, else the id) is the World's rule; `parseKeyTable` reads the table a spawn returns, and the World's `inputKeys` and `feedbackKeys` tables (`InputKeys`, `FeedbackKeys`): the input key each animatable's writes address on an entity, and the input and feedback keys each bound device keeps it under (`k/target.c`, `k.target_c` or `k`; an axis spelled from its group's key, the axis after the component in the new form), resolved per device by the World.
+  - **`storeKeyFor`** gives the store key an entity's instance reads, from the animatable's `AnimatableKeys` (its feedback and input keys on each device): for `target`, the input under the device the view follows (`FollowedInstance`, `sim` unless `feedback` is asked for, resolved by `followedDeviceId`), nothing when that device does not drive it; for `sim` and `feedback`, the device's feedback under the instance id.
+  - **`SceneBinding`** is built from the spawned entities, the device each one's view follows, their models' animatables, the World's key table and the input keys of the entity and the input and feedback keys of each bound device (`inputs`, `deviceInputs`, `deviceFeedback`), and reads both ways: `dotKeysFor` fans a store key out to every dot key bound to it, `targetFor` resolves a write on a target dot key to a `TargetBinding` — the entity and input key the write is addressed to, and the store key that holds what the followed device received. `getLookup`'s dot keys are unchanged.
+  - **`toTaggedValue` / `fromTaggedValue`** convert between a scalar and arora's externally tagged `Value` JSON (`{"f64": n}`, `{"str": s}`, `{"bool": b}`).
+
+- 0a439db: `keyTableOf` gives the key table the World's rule gives an entity's animatables: each animatable's `pub.output` when it is non-empty and no other of them publishes the same output, else its id. `bareInputKey` spells an animatable's bare input from that key: the key itself, or for an axis of a structured value, its group's key then the axis. A device that renders those animatables and opens each one's bare input is written there by the World. The World stays the authority on both, and Studio's side keeps reading the tables the World returns.
+- 6371a2a: - **`createPlayerStore()`** makes a player of one's own, shaped like `usePlayerStore`: the player a standalone timeline shows when its host shares none with it.
+  - **`namespaceEntity(namespace)`**, the inverse of `entityNamespace`: the entity a scene instance's namespace (`entityId@instanceId`) belongs to, a namespace that names no instance being the entity's own id. The animation package and Studio's entity actions read the form through it.
+- a764cdc: `SceneBinding` binds the inputs an entity's runtime declares beyond its animatables (`SceneBindingEntry.runtimeInputs`, `RuntimeInput`): each is shown on the `target` instance under `runtimeInputId(key)`, read from the runtime (the `sim` instance's device), and a write on it resolves to the entity and the key, with the arora type the runtime declares (`TargetBinding.ty`; `TargetBinding.animatable` is absent for such an input). `runtimeInputKey` reads a key back from its id. `isNumberType` says whether an arora type name is a number's.
+
+### Patch Changes
+
+- f286b72: `SceneBinding`'s documentation states what a view reads from it, the seam a Bevy view takes: the store keys it shows (`storeKeys`) and the features each feeds (`dotKeysFor`), strings only.
+
 ## 0.4.0
 
 ### Minor Changes
