@@ -1,5 +1,21 @@
 # @semio/utils
 
+## 0.6.0
+
+### Minor Changes
+
+- 87f9c41: `@semio/utils` now holds only generic utilities, and is licensed Apache-2.0 instead of MIT. Semio's value model is in the new `@semio/data`, and code that serves one package is in that package. Import each removed name from its new home:
+  - **`@semio/data`** — the value types and guards (`RawValue`, `RawBoolean`, `RawNumber`, `RawString`, `RawVector2`, `RawVector3`, `RawEuler`, `RawRGB`, `RawHSL`, `RawColor`, `AnimatableValue`, `AnimatableBoolean`, `AnimatableNumber`, `AnimatableString`, `AnimatableVector2`, `AnimatableVector3`, `AnimatableEuler`, `AnimatableColor`, `AnimatableGroupType`, `AnimatableGroupInfo`, `AnimatablePubInfo`, `DeprecatedComplexAnimatableValue`, `instanceOfRawNumber`, `instanceOfRawString`, `instanceOfRawVector2`, `instanceOfRawVector3`, `instanceOfRawEuler`, `instanceOfRawColor`, `instanceOfRawRGB`, `instanceOfRawHSL`, `isRawObject`, `warnUnexpectedFeatureValue`); `rawRGBToHex` and `rawHSLToHex`; the store port (`DataStore`, `Slot`, `AroraValue`, `StateChange`, `DataStoreContext`, `useDataStore`, `watchKey`); the values store (`useValuesStore`, `createValuesStore`, `valuesDataStore`, `mergeValueMaps`, `ValuesStore`, `ValuesData`, `ValuesActions`); the value encoding (`ScalarValue`, `TaggedValue`, `isNumberType`, `toTaggedValue`, `fromTaggedValue`); the id conventions (`entityNamespace`, `namespaceEntity`, `runtimeInputId`, `runtimeInputKey`); `getLookup`, `getNamespace`, `getId`; `storedEulerXYZtoRPY`.
+  - **`@semio/animation`** — the player: `Player`, `PlayerDirection`, `newPlayer`, `usePlayerStore`, `PlayerStore`, `PlayerData`, `PlayerActions`, `PlayerSlice`, `PlayerStoreSetter`. Its transport combinators (`play`, `pause`, `reset`, `reversed`, `withBounce`, `withBounds`, `withDirection`, `withLooping`, `withSpeed`) and `createPlayerStore` are internal to `@semio/animation`.
+  - **`@semio/ui`** — the React context helpers, which `@semio/ui` already exported: `createContextSolution`, `withOptionalContext`, `createContextHook`, `createContextProvider`, `composeContexts`, `useOptionalContext`, `createContextChecker`, `ContextConfig`, `ContextSolutionConfig`, `OptionalContextProps`.
+  - **Studio** (not published) — the scene binding (`SceneBinding`, `SceneBindingEntry`, `BoundEntity`, `BoundInstances`, `FollowedInstance`, `KeyTable`, `InputKeys`, `FeedbackKeys`, `RuntimeInput`, `TargetBinding`, `keyTableOf`, `parseKeyTable`, `followedDeviceId`, `bareInputKey`) and the error report (`ErrorReport`, `ErrorReportContext`, `createErrorReport`, `formatErrorReport`, `toDiagnosticError`, `DiagnosticError`). `storeKeyFor`, `AnimatableKeys` and `redactDiagnosticText` are internal to it.
+
+  The React context and the stores among the moved names (`DataStoreContext`, `useValuesStore`, `usePlayerStore`) are new instances in their new packages, not aliases of this package's: a host provides and reads each from the same package as the libraries it renders.
+
+  Removed, with no replacement: `getHexagonPath`, `getDegenerateHexagonPath`, `pointsToPath`, `useLazy`, `log`, `isMapDeepEqual`, `MapDeepEqualOptions`, `MapFilterFn`, `numberToDurationString`, `useMediaQuery`, `instanceOfRawBoolean`, `seek`, `withDuration`, `PlayerContext`, `PlayerStoreGetter`, `ContextValue`, and `WithTooltipContextProps` (`@semio/ui` exports its own).
+
+  What remains: results and progress (`Result`, `Progress`, …), JSON and download helpers, the `EMAIL` pattern, angle conversion, euler and quaternion math, `pairwise`, `overlappingSegments`, `closestFrame`, colour helpers, `useDeepSelector` / `useDeep`, zustand helper types, three.js camera guards, `unitDisplay`, and the canvas frameloop setting.
+
 ## 0.5.0
 
 ### Minor Changes
