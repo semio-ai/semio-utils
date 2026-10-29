@@ -1,5 +1,4 @@
 import Color from "color";
-import { RawHSL, RawRGB } from "./animated-values";
 
 // Three comma-separated components of at most three digits each, not part of a
 // longer run of digits. Bounding the digits keeps a long digit string linear;
@@ -167,14 +166,6 @@ export function altColor(color: string, factor: number): string {
 export function hexToRgbArray(color: string): [number, number, number] {
   const c = Color(color);
   return [c.red(), c.green(), c.blue()];
-}
-
-export function rawRGBToHex({ r, g, b }: RawRGB): string {
-  return Color({ r, g, b }).hex() as string;
-}
-
-export function rawHSLToHex({ h, s, l }: RawHSL): string {
-  return Color({ h, s, l }).hex() as string;
 }
 
 export function randomHexString(
