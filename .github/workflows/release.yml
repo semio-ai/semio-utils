@@ -1,0 +1,246 @@
+# Changesets opens a Version Packages PR for the next version; staging does not
+# wait for that PR or for pending changesets to disappear. Every main run stages
+# the current unpublished, unmarked version from its version commit: the latest
+# first-parent commit on main changing the package.json version line, verified
+# against the current version. A separate worktree builds that commit, never a
+# later HEAD. An annotated staged/v<version> records it after staging succeeds.
+# Approval on npm creates v<version> there and deletes the marker. Published
+# current versions missing both tags are recovered at the version commit.
+# A rejected number may not be stageable again (npm does not document this):
+# bump the version to restage, and delete the rejected version's marker.
+# GitHub disables public schedules after 60 idle days; use a main push or dispatch.
+#
+# One-time maintainer setup on npmjs.com: the package's Trusted Publisher uses
+# GitHub Actions, repository semio-ai/semio-utils, workflow release.yml, and no
+# environment. Allow stage publish and disallow npm publish; no npm secret is needed.
+# In the repository settings, enable "Allow GitHub Actions to create and approve
+# pull requests" so Changesets can open the Version Packages PR.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 8 * * *"
+
+concurrency: release-${{ github.ref }}
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Require npm with staged publishing support
+        run: |
+          node <<'NODE'
+          const { execFileSync } = require("node:child_process");
+          const version = execFileSync("npm", ["--version"], { encoding: "utf8" }).trim();
+          console.log(`npm version: ${version}`);
+          const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+          if (!match || Number(match[1]) < 11 ||
+              (Number(match[1]) === 11 && Number(match[2]) < 15)) {
+            console.error("npm >= 11.15.0 is required for npm stage publish; update the Node 24 runtime.");
+            process.exit(1);
+          }
+          NODE
+
+      - run: npm ci
+
+      - name: Resolve version commit
+        id: version
+        run: |
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          commit=$(git log --first-parent -1 --format=%H -G '^[[:space:]]*"version"[[:space:]]*:' origin/main -- package.json)
+          if [[ -z "$commit" ]]; then
+            echo "::error::No version commit found on main for $name@$version."
+            exit 1
+          fi
+          commit_version=$(git show "$commit:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          if [[ "$commit_version" != "$version" ]]; then
+            echo "::error::Version commit $commit has package.json version $commit_version, expected $version."
+            exit 1
+          fi
+          printf 'name=%s\nversion=%s\ncommit=%s\n' "$name" "$version" "$commit" >>"$GITHUB_OUTPUT"
+
+      - name: Create Version Packages PR
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npx changeset version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide whether to stage
+        id: staging
+        env:
+          PACKAGE_NAME: ${{ steps.version.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          name=$PACKAGE_NAME
+          version=$PACKAGE_VERSION
+          published=$(node .github/scripts/npm-published.mjs "$name" "$version")
+          remote_tags=$(git ls-remote --tags --refs origin \
+            "refs/tags/staged/v$version" "refs/tags/v$version")
+          printf 'name=%s\nversion=%s\npublished=%s\norigin tags=%s\n' \
+            "$name" "$version" "$published" "$remote_tags"
+
+          stage=false
+          if [[ "$published" == "false" && -z "$remote_tags" ]]; then
+            stage=true
+          fi
+          printf 'stage=%s\n' "$stage" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Stage on npm with OIDC
+        if: steps.staging.outputs.stage == 'true'
+        env:
+          PACKAGE_NAME: ${{ steps.version.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          VERSION_COMMIT: ${{ steps.version.outputs.commit }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          name=$PACKAGE_NAME
+          version=$PACKAGE_VERSION
+          commit=$VERSION_COMMIT
+          repository=$PWD
+          worktree=$(mktemp -d "$RUNNER_TEMP/stage.XXXXXX")
+          git worktree add --detach "$worktree" "$commit"
+          trap 'git -C "$repository" worktree remove --force "$worktree"' EXIT
+          cd "$worktree"
+          npm ci
+          npm run build
+          printf 'Staging %s@%s built from version commit %s\n' "$name" "$version" "$commit"
+          args=()
+          if [[ "${version%%+*}" == *-* ]]; then
+            args+=(--tag next)
+          fi
+          if ! npm stage publish "${args[@]}"; then
+            echo "::error::npm stage publish failed for $name@$version (version commit $commit). If npm confirms an earlier staging succeeded without a marker, recover it at exactly $commit: git tag -a staged/v$version $commit -m 'staged $name@$version' && git push origin refs/tags/staged/v$version."
+            exit 1
+          fi
+          git tag -a "staged/v$version" "$commit" -m "staged $name@$version"
+          if ! git push origin "refs/tags/staged/v$version"; then
+            echo "::error::Staging succeeded, but its marker push failed. Push staged/v$version at built commit $commit by hand: git tag -a -f staged/v$version $commit -m 'staged $name@$version' && git push origin refs/tags/staged/v$version."
+            exit 1
+          fi
+          # Backticks in the summary are literal Markdown.
+          # shellcheck disable=SC2016
+          {
+            printf '### Staged %s@%s\n\n' "$name" "$version"
+            printf 'A maintainer must approve this version with 2FA on npmjs.com → package → Staged Packages, '
+            printf 'or run `npm stage approve <id>`.\n\n'
+            printf 'Marker `staged/v%s` records built commit `%s`.\n\n' "$version" "$commit"
+            printf 'The next main run tags `v%s` there after npm reports it published (daily schedule, push or dispatch). ' "$version"
+            printf 'GitHub disables public schedules after 60 idle days; use a main push or dispatch then.\n'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Tag staged versions after npm approval
+        run: |
+          name=$(node -p 'require("./package.json").name')
+          failed=0
+          markers=$(git ls-remote --tags --refs origin 'refs/tags/staged/v*')
+          while read -r object marker; do
+            [[ -n "$marker" ]] || continue
+            version=${marker#refs/tags/staged/v}
+            tag="v$version"
+            # Fetch exactly origin's listed object, including annotated markers.
+            git fetch --no-tags origin "$object"
+            commit=$(git rev-parse 'FETCH_HEAD^{commit}')
+            if ! git merge-base --is-ancestor "$commit" origin/main; then
+              echo "::error::$marker commit $commit is not an ancestor of origin/main."
+              failed=1
+              continue
+            fi
+            if ! commit_version=$(git show "$commit:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version'); then
+              echo "::error::$marker commit $commit has no readable package.json version."
+              failed=1
+              continue
+            fi
+            if [[ "$commit_version" != "$version" ]]; then
+              echo "::error::$marker commit $commit has package.json version $commit_version, expected $version."
+              failed=1
+              continue
+            fi
+            remote_tag=$(git ls-remote --tags --refs origin "refs/tags/$tag")
+            if [[ -n "$remote_tag" ]]; then
+              echo "$tag already exists on origin."
+              continue
+            fi
+            published=$(node .github/scripts/npm-published.mjs "$name" "$version")
+            if [[ "$published" != "true" ]]; then
+              echo "$name@$version is awaiting approval; leaving $marker."
+              # Lightweight tags have no tagger date.
+              tagger_date=
+              if [[ "$(git cat-file -t "$object")" == "tag" ]]; then
+                tagger_date=$(git cat-file -p "$object" | sed -n '/^$/q; s/^tagger .* \([0-9][0-9]*\) [+-][0-9][0-9][0-9][0-9]$/\1/p')
+              fi
+              if [[ "$tagger_date" =~ ^[0-9]+$ ]]; then
+                age_seconds=$(( $(date +%s) - tagger_date ))
+                if (( age_seconds > 7 * 86400 )); then
+                  days=$(( age_seconds / 86400 ))
+                  echo "::warning::$marker awaiting approval for $days days: approve it on npm, or delete the marker if npm has no such staged version."
+                fi
+              fi
+              continue
+            fi
+            git tag "$tag" "$commit"
+            git push origin "refs/tags/$tag"
+            git push origin --delete "$marker"
+          done <<< "$markers"
+
+          # Recover approvals whose marker push failed, and pre-split publications.
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          commit=$(git log --first-parent -1 --format=%H -G '^[[:space:]]*"version"[[:space:]]*:' origin/main -- package.json)
+          if [[ -z "$commit" ]]; then
+            echo "::error::No version commit found on main for $name@$version."
+            exit 1
+          fi
+          commit_version=$(git show "$commit:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          if [[ "$commit_version" != "$version" ]]; then
+            echo "::error::Version commit $commit has package.json version $commit_version, expected $version."
+            exit 1
+          fi
+          remote_tags=$(git ls-remote --tags --refs origin \
+            "refs/tags/staged/v$version" "refs/tags/v$version")
+          if [[ -z "$remote_tags" ]]; then
+            published=$(node .github/scripts/npm-published.mjs "$name" "$version")
+            if [[ "$published" == "true" ]]; then
+              git tag "v$version" "$commit"
+              git push origin "refs/tags/v$version"
+            fi
+          fi
+          exit "$failed"

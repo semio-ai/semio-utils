@@ -4,9 +4,10 @@
   "version": "0.6.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/semio-ai/studio.git",
-    "directory": "packages/utils"
+    "url": "git+https://github.com/semio-ai/semio-utils.git"
   },
+  "homepage": "https://github.com/semio-ai/semio-utils#readme",
+  "bugs": "https://github.com/semio-ai/semio-utils/issues",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -31,17 +32,32 @@
     "lint:fix": "eslint . --fix",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
     "test:unit": "vitest run",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "changeset": "changeset",
+    "test:release": "node .github/tests/release-harness.mjs"
   },
   "devDependencies": {
-    "@semio/eslint-config": "*",
-    "@semio/typescript-config": "*",
+    "@changesets/cli": "^2.30.0",
+    "@eslint/js": "^9.39.4",
     "@types/color": "^3.0.6",
     "@types/deep-equal": "^1.0.4",
     "@types/react": "^19.1.0",
     "@types/three": "^0.170.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-unicorn": "^63.0.0",
+    "globals": "^17.11.0",
+    "js-yaml": "^4.1.0",
+    "prettier": "^3.3.3",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
+    "typescript-eslint": "^8.59.3",
     "vitest": "^5.0.1"
   },
   "publishConfig": {
