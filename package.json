@@ -4,7 +4,7 @@
   "version": "0.4.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/semio-ai/semio_studio.git",
+    "url": "git+https://github.com/semio-ai/studio.git",
     "directory": "packages/utils"
   },
   "main": "dist/index.js",
