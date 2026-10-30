@@ -4,10 +4,27 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # A published range changes only when a new version falls outside it, so a routine
+    # update moves only the lockfile and neither consumers nor Studio's mount follow it.
+    versioning-strategy: increase-if-necessary
     groups:
       development-dependencies:
         dependency-type: development
+        update-types: [minor, patch]
+    # Studio mounts this library as an npm workspace and shares one installed copy of
+    # each dependency and tool with it, so a major version moves in Studio and its
+    # libraries together, by hand. The rule also stops a security update pull request
+    # that needs a major; the Dependabot alert still opens, because alerts come from
+    # the dependency graph and dependabot.yml does not affect them.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # changesets/action 2 refuses Changesets CLI 2 and renames the inputs release.yml
+      # passes, so the action, the CLI and the release harness move together.
+      - dependency-name: changesets/action
+        update-types: ["version-update:semver-major"]
