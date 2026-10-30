@@ -45,7 +45,7 @@
     "@types/color": "^3.0.6",
     "@types/deep-equal": "^1.0.4",
     "@types/react": "^19.1.0",
-    "@types/three": "^0.170.0",
+    "@types/three": "^0.186.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
