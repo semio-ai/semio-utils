@@ -1,5 +1,11 @@
 # @semio/utils
 
+## 0.6.1
+
+### Patch Changes
+
+- 3f251de: The package is released from its own repository, semio-ai/semio-utils, and its npm page links there.
+
 ## 0.6.0
 
 ### Minor Changes
