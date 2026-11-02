@@ -27,16 +27,21 @@ updates:
     # major; the Dependabot alert still opens, because alerts come from the dependency
     # graph and dependabot.yml does not affect them.
     #
-    # Two updates that are not majors break the same way, so they also move with Studio:
+    # Some updates that are not majors break the same way, so they also move with Studio:
     # - eslint-plugin-tailwindcss: Studio lints each mounted library with its own copy,
     #   4.0.0-beta.0, whose `flat/recommended` config the stable 4.x releases drop, so
     #   the plugin and the libraries' ESLint config move with Studio's.
+    # - typescript-eslint: Studio lints each mounted library with its own copy too, and
+    #   its minor releases change what rules report (8.72's `no-shadow` flags
+    #   `const X = memo(function X() {})`), so a library's code passes the version Studio
+    #   runs and moves to a newer one together with Studio.
     # - three and its types: three versions as 0.x, so a minor release breaks, and a
     #   library declaring a newer minor installs a second copy beside Studio's.
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
       - dependency-name: eslint-plugin-tailwindcss
+      - dependency-name: typescript-eslint
       - dependency-name: three
         update-types: ["version-update:semver-minor"]
       - dependency-name: "@types/three"
