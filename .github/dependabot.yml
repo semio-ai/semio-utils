@@ -1,28 +1,50 @@
 version: 2
+# One pull request a week carries every npm and GitHub Actions update this file allows,
+# so a library's updates are reviewed, tested and merged together. An update that
+# breaks holds the whole pull request: fix it on the pull request's branch, or add an
+# ignore rule below with its reason.
+multi-ecosystem-groups:
+  dependencies:
+    schedule:
+      interval: weekly
 updates:
   - package-ecosystem: npm
     directory: /
-    schedule:
-      interval: weekly
+    multi-ecosystem-group: dependencies
+    patterns: ["*"]
     # A published range changes only when a new version falls outside it, so a routine
     # update moves only the lockfile and neither consumers nor Studio's mount follow it.
     versioning-strategy: increase-if-necessary
+    # Security updates are not scheduled: each time alerts have fixes, one pull request
+    # carries all of them.
     groups:
-      development-dependencies:
-        dependency-type: development
-        update-types: [minor, patch]
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
     # Studio mounts this library as an npm workspace and shares one installed copy of
     # each dependency and tool with it, so a major version moves in Studio and its
-    # libraries together, by hand. The rule also stops a security update pull request
-    # that needs a major; the Dependabot alert still opens, because alerts come from
-    # the dependency graph and dependabot.yml does not affect them.
+    # libraries together, by hand. The rule also stops a security update that needs a
+    # major; the Dependabot alert still opens, because alerts come from the dependency
+    # graph and dependabot.yml does not affect them.
+    #
+    # Two updates that are not majors break the same way, so they also move with Studio:
+    # - eslint-plugin-tailwindcss: Studio lints each mounted library with its own copy,
+    #   4.0.0-beta.0, whose `flat/recommended` config the stable 4.x releases drop, so
+    #   the plugin and the libraries' ESLint config move with Studio's.
+    # - three and its types: three versions as 0.x, so a minor release breaks, and a
+    #   library declaring a newer minor installs a second copy beside Studio's.
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-plugin-tailwindcss
+      - dependency-name: three
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "@types/three"
+        update-types: ["version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: weekly
+    multi-ecosystem-group: dependencies
+    patterns: ["*"]
     ignore:
       # changesets/action 2 refuses Changesets CLI 2 and renames the inputs release.yml
       # passes, so the action, the CLI and the release harness move together.
