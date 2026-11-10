@@ -35,16 +35,26 @@ updates:
     #   its minor releases change what rules report (8.72's `no-shadow` flags
     #   `const X = memo(function X() {})`), so a library's code passes the version Studio
     #   runs and moves to a newer one together with Studio.
+    # - Tailwind: Studio builds each mounted library's CSS with its own copy, and minor
+    #   releases change the CSS it emits (4.3 serializes achromatic colours as
+    #   `oklch(L 0 none)`, which ui's appearance and parity tests compare).
     # - three and its types: three versions as 0.x, so a minor release breaks, and a
     #   library declaring a newer minor installs a second copy beside Studio's.
+    # - radix-ui minors: ui allows only releases below 1.6, because 1.6 and 1.7 change
+    #   how its toast menu and disabled Select options behave. A newer minor waits until
+    #   ui works with it.
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
       - dependency-name: eslint-plugin-tailwindcss
       - dependency-name: typescript-eslint
+      - dependency-name: tailwindcss
+      - dependency-name: "@tailwindcss/*"
       - dependency-name: three
         update-types: ["version-update:semver-minor"]
       - dependency-name: "@types/three"
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: radix-ui
         update-types: ["version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: /
